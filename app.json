@@ -1,0 +1,59 @@
+{
+  "expo": {
+    "name": "my-app",
+    "slug": "my-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "simplemeditation",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/dwellnerLogo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "config": {
+        "googleMapsApiKey": "AIzaSyA1cRST4odpAAs30pWs5414iJebTTynDpo"
+      },
+      "bundleIdentifier": "dwellner-app"
+    },
+    "android": {
+      "package": "com.dwellner.app",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyA1cRST4odpAAs30pWs5414iJebTTynDpo"
+        }
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "runtimeVersion": {
+      "policy": "sdkVersion"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      [
+        "expo-build-properties",
+        {
+            "ios": {
+                "useFrameworks": "static"
+            }
+        }
+      ]
+    ],
+    "extra": {
+      "useTestVerification": true
+    }
+  }
+}
