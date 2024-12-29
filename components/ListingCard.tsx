@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { ListingData } from '@/utils/firebase';
+import { useRouter } from 'expo-router';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -22,6 +23,7 @@ interface ListingCardProps {
     onMediaIndexChange: (index: number) => void;
     onClose?: () => void;
     onFavorite?: () => void;
+    onAddressPress?: () => void;
 }
 
 export const getFilters = () => {
@@ -42,7 +44,8 @@ const ListingCard = ({
     currentMediaIndex = 0,
     onMediaIndexChange,
     onClose,
-    onFavorite
+    onFavorite,
+    onAddressPress
 }: ListingCardProps) => {
     const mediaItems = listing.media || [];
 
@@ -121,9 +124,27 @@ const ListingCard = ({
             </View>
 
             <View className="p-4">
-                <View className="flex-row justify-between items-center">
-                    <Text className="text-lg font-semibold">{listing.address}</Text>
-                    <Text className="text-[#8CC7C3] text-base ml-2">Apartment</Text>
+                <View className="h-12 flex-row justify-between items-start">
+                    <TouchableOpacity 
+                        onPress={onAddressPress} 
+                        className="flex-1 mr-2"
+                        activeOpacity={0.7}
+                    >
+                        <Text 
+                            adjustsFontSizeToFit
+                            numberOfLines={2}
+                            minimumFontScale={0.75}
+                            className="font-semibold underline"
+                            style={{
+                                fontSize: listing.address.length <= 30 ? 20 : 16,
+                                lineHeight: listing.address.length <= 30 ? 24 : 20,
+                                maxHeight: 48
+                            }}
+                        >
+                            {listing.address}
+                        </Text>
+                    </TouchableOpacity>
+                    <Text className="text-[#8CC7C3] text-sm">Apartment</Text>
                 </View>
                 
                 <View className="flex-row justify-between items-center mt-2">

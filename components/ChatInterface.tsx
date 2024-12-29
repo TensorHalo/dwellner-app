@@ -1,30 +1,47 @@
-import { View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView, Keyboard, ViewStyle } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView, ViewStyle } from 'react-native';
 import React, { useState, useRef, useEffect } from 'react';
 import { Feather as FeatherIcon } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
-import { ListingData, fetchListings } from '@/utils/firebase';
-// import ListingsMessage from '@/components/ListingsMessage';
+import { ListingData } from '@/utils/firebase';
 import { useRouter } from 'expo-router';
 import ListingsButton from './ListingsButton';
+
+const API_CONFIG = {
+    API_ENDPOINT: 'https://api.dwellner.ca/api/v0/text_v2'
+};
 
 interface ChatMessage {
     id: number;
     text: string;
     sender: 'user' | 'bot';
     listings?: ListingData[];
+    responseGroup?: number;
+    isTyping?: boolean;
+    displayedText?: string;
 }
 
-// for test
-const TEST_LISTING_IDS = [
-    "20535215",
-    "20710014",
-    "20731370",
-    "21539525",
-    "21620042",
-    "21763400",
-    "21871454",
-    "21893816"
-];
+interface ProcessedListing {
+    listing_id: string;
+    address: string;
+    list_price: number;
+    bedrooms_total: number;
+    bathrooms_total: number;
+    parking_features: string[];
+    property_type: string;
+    media: Array<{
+        MediaURL: string;
+        MediaType: string;
+    }>;
+    coordinates: {
+        latitude: number;
+        longitude: number;
+    };
+    PublicRemarks: string;
+    LotFeatures: string[];
+    City: string;
+    PostalCode: string;
+    ParkingTotal: number;
+}
 
 interface ChatInterfaceProps {
     onChatStart: () => void;
@@ -36,9 +53,14 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
     const [isRecording, setIsRecording] = useState(false);
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const scrollViewRef = useRef<ScrollView>(null);
-    const [sessionId] = useState(() => Math.random().toString(36).substring(2, 15));
+    const [sessionId] = useState(() => `session_${Math.random().toString(36).substring(2, 15)}`);
+    const [isShowingResponse, setIsShowingResponse] = useState(false);
+    const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+    const router = useRouter();
 
-    // Auto-scroll when new messages are added
+    const MAX_RETRIES = 500;  // Maximum number of retry attempts
+    const RETRY_DELAY = 200;  // Delay between retries in milliseconds
+
     useEffect(() => {
         scrollToBottom();
     }, [chatMessages]);
@@ -49,31 +71,126 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
         }, 100);
     };
 
+    const animateResponse = async (messages: ChatMessage[]) => {
+        setIsShowingResponse(true);
+        
+        for (let i = 0; i < messages.length; i++) {
+            const message = messages[i];
+            if (message.sender === 'bot' && !message.listings) {
+                setChatMessages(prev => prev.map((msg, index) => 
+                    index === prev.length - messages.length + i
+                        ? { ...msg, isTyping: true, displayedText: '' }
+                        : msg
+                ));
+
+                // Animate each character
+                const text = message.text;
+                for (let j = 0; j <= text.length; j++) {
+                    await new Promise(resolve => {
+                        typingTimeoutRef.current = setTimeout(resolve, 5); // Adjust speed here
+                    });
+
+                    setChatMessages(prev => prev.map((msg, index) =>
+                        index === prev.length - messages.length + i
+                            ? { ...msg, displayedText: text.slice(0, j) }
+                            : msg
+                    ));
+                }
+
+                setChatMessages(prev => prev.map((msg, index) =>
+                    index === prev.length - messages.length + i
+                        ? { ...msg, isTyping: false, displayedText: text }
+                        : msg
+                ));
+                
+                await new Promise(resolve => {
+                    typingTimeoutRef.current = setTimeout(resolve, 300);
+                });
+            }
+        }
+        
+        setIsShowingResponse(false);
+    };
+
     const handleApiResponse = async (responseData: any) => {
         console.log('Handling API response:', responseData);
         
         try {
-            // First, add the text response
-            const botMessage: ChatMessage = {
-                id: Date.now(),
-                text: responseData.text || 'No response text available',
-                sender: 'bot',
-            };
-            setChatMessages(prev => [...prev, botMessage]);
+            if (responseData.response && responseData.response[0]) {
+                const responseText = responseData.response[0].resp || 'No response text available';
+                const textParts = responseText.split('\n').filter(part => part.trim() !== '');
+                const responseGroup = Date.now();
     
-            // Then handle listings if present
-            if (responseData.show_listings_flag && Array.isArray(responseData.listings)) {
-                const listings = await fetchListings(TEST_LISTING_IDS);
-                console.log('Fetched listings:', listings);
-    
-                if (listings.length > 0) {
-                    const listingsMessage: ChatMessage = {
+                // Add and animate first message first
+                if (textParts.length > 0) {
+                    const firstMessage: ChatMessage = {
                         id: Date.now(),
-                        text: '',
+                        text: textParts[0].trim(),
                         sender: 'bot',
-                        listings: listings,
+                        responseGroup: responseGroup,
+                        isTyping: false,
+                        displayedText: ''
                     };
-                    setChatMessages(prev => [...prev, listingsMessage]);
+                    
+                    // Add first message
+                    setChatMessages(prev => [...prev, firstMessage]);
+                    
+                    // Animate first message
+                    await animateResponse([firstMessage]);
+    
+                    // Then add listings if available
+                    if (responseData.response[0].show_listings_flag && Array.isArray(responseData.response[0].listing)) {
+                        const listings = responseData.response[0].listing.map((listing: any) => ({
+                            listing_id: listing.ListingId,
+                            address: listing.UnparsedAddress,
+                            city: listing.City,
+                            architectural_style: Array.isArray(listing.ArchitecturalStyle) ? listing.ArchitecturalStyle : 
+                                typeof listing.ArchitecturalStyle === 'string' ? JSON.parse(listing.ArchitecturalStyle) : [],
+                            bathrooms_partial: listing.BathroomsPartial,
+                            bathrooms_total: listing.BathroomsTotalInteger,
+                            bedrooms_total: listing.BedroomsTotal,
+                            common_interest: listing.CommonInterest || '',
+                            country: listing.Country,
+                            coordinates: {
+                                latitude: listing.Latitude,
+                                longitude: listing.Longitude
+                            },
+                            list_price: listing.TotalActualRent,
+                            parking_features: Array.isArray(listing.ParkingFeatures) ? listing.ParkingFeatures :
+                                typeof listing.ParkingFeatures === 'string' ? JSON.parse(listing.ParkingFeatures) : [],
+                            property_type: Array.isArray(listing.StructureType) ? listing.StructureType[0] :
+                                typeof listing.StructureType === 'string' ? JSON.parse(listing.StructureType)[0] : 'Unknown',
+                            photos_count: listing.PhotosCount || 0,
+                            media: Array.isArray(listing.Media) ? listing.Media :
+                                typeof listing.Media === 'string' ? JSON.parse(listing.Media) : []
+                        }));
+    
+                        if (listings.length > 0) {
+                            const listingsMessage: ChatMessage = {
+                                id: Date.now() + 1,
+                                text: '',
+                                sender: 'bot',
+                                listings: listings,
+                                responseGroup: responseGroup
+                            };
+                            setChatMessages(prev => [...prev, listingsMessage]);
+                        }
+                    }
+    
+                    // Finally, add and animate remaining messages
+                    if (textParts.length > 1) {
+                        const remainingMessages = textParts.slice(1).map((text, i) => ({
+                            id: Date.now() + i + 2,
+                            text: text.trim(),
+                            sender: 'bot' as const,
+                            responseGroup: responseGroup,
+                            isTyping: false,
+                            displayedText: ''
+                        }));
+    
+                        setChatMessages(prev => [...prev, ...remainingMessages]);
+                        await animateResponse(remainingMessages);
+                    }
                 }
             }
         } catch (error) {
@@ -86,8 +203,6 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
             setChatMessages(prev => [...prev, errorMessage]);
         }
     };
-
-    const router = useRouter();
 
     const startRecording = async () => {
         try {
@@ -126,6 +241,43 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
         }
     };
 
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    const makeApiCall = async (messageToSend: string) => {
+        const response = await fetch(API_CONFIG.API_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, text/plain, */*',
+                'Authorization': 'Bearer eyJraWQiOiIzY200STgwMVpudWRiUkY0b2xyeFF3SU1NbkVsd2FWWHBqbDdMRFc2cHZNPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhYzZkMjUzOC0zMGYxLTcwYzYtNjBkZi03ZmE4MjcxOThkYTYiLCJpc3MiOiJodHRwczpcL1wvY29nbml0by1pZHAuY2EtY2VudHJhbC0xLmFtYXpvbmF3cy5jb21cL2NhLWNlbnRyYWwtMV82eEV2Q0RuVDYiLCJjbGllbnRfaWQiOiJ1OGthN3JncmRzamdmZmY4dWlvNWRlZzdrIiwib3JpZ2luX2p0aSI6ImVjMzc1MDg1LWIyMTMtNDRmMS04NjE1LWFlYTYzNGMxZDRiZSIsImV2ZW50X2lkIjoiMTMyZmRlNmItYTZjZS00NTQxLTgzMzAtYzQzMjc1MzkzMDcyIiwidG9rZW5fdXNlIjoiYWNjZXNzIiwic2NvcGUiOiJhd3MuY29nbml0by5zaWduaW4udXNlci5hZG1pbiIsImF1dGhfdGltZSI6MTczNTM3Njg5NywiZXhwIjoxNzM1NDYzMjk3LCJpYXQiOjE3MzUzNzY4OTcsImp0aSI6ImM2YTlhNTI2LWZjMjctNGY5YS1hMDY0LWM1ZTMzZDQwMTJkMiIsInVzZXJuYW1lIjoiYWM2ZDI1MzgtMzBmMS03MGM2LTYwZGYtN2ZhODI3MTk4ZGE2In0.MMzy5jFz9mfTxdtSstIcbSzR7DM4mUgT-ilwh7tptrnt0kBNy63Kr-QDBP5ai8Kfg-uZuMIwJZ65Xoy5DTuqQSg9rvnrWNf9niUls_rCfBls6_MA8oElChfMFkQWjkYMJVJMX5aEuHnHBK3rMyRXl5bUy7Ma93zGkjzLkI64pbO2yY7xkJScOYcj1M6OihxD1hWYjoJ8nNuj_WdPNinCfJMHhTpOyBf1kyYNLaATWq28uZKFouk9lU8IurBGF4WLL9j51kCi5480SJURJDUHMFgaEg8zQ05fs26m8GiaeQWrkqNuRhW9ZG6BGbNpdIBi7yyhT_SRpguLDxPlkgJSWQ',
+                'id-token': 'eyJraWQiOiJHREtXejFJVFhIY2JaQTFtV2R4aG8ra0pQdTd4bitpUVZUczczeUs5UW9BPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhYzZkMjUzOC0zMGYxLTcwYzYtNjBkZi03ZmE4MjcxOThkYTYiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiaXNzIjoiaHR0cHM6XC9cL2NvZ25pdG8taWRwLmNhLWNlbnRyYWwtMS5hbWF6b25hd3MuY29tXC9jYS1jZW50cmFsLTFfNnhFdkNEblQ2IiwiY29nbml0bzp1c2VybmFtZSI6ImFjNmQyNTM4LTMwZjEtNzBjNi02MGRmLTdmYTgyNzE5OGRhNiIsIm9yaWdpbl9qdGkiOiJlYzM3NTA4NS1iMjEzLTQ0ZjEtODYxNS1hZWE2MzRjMWQ0YmUiLCJhdWQiOiJ1OGthN3JncmRzamdmZmY4dWlvNWRlZzdrIiwiZXZlbnRfaWQiOiIxMzJmZGU2Yi1hNmNlLTQ1NDEtODMzMC1jNDMyNzUzOTMwNzIiLCJ0b2tlbl91c2UiOiJpZCIsImF1dGhfdGltZSI6MTczNTM3Njg5NywiZXhwIjoxNzM1NDYzMjk3LCJpYXQiOjE3MzUzNzY4OTcsImp0aSI6IjIyMDcyNTRkLWZkYmItNGIzYS1iZWNhLWY5OGQ4MTRmZDIyZSIsImVtYWlsIjoic3RlcGhlbkBkd2VsbG5lci5jb20ifQ.dLFgkqVgHBixkApRi7Ns2WJQu7wIaXPVxhl3YgcFiSTpxGTBpDfkM9oK_A5sb-t6yV8nLxM4JwtOSQ5EpR6zwhFF1dROj_FIR_4ePZyNHfbItsHS9j0r5cmtEa7faHAo9D1AUjWpD9JFPAAshrIzb_kh9DHk02PYedl4xNptQG0a_QsDrcETJaX1YaQ4tRQpLuWdJkrZNmr1ilbRoNN8K5CHx9SFTTmenZO_naZ7sfjsGpsxV-LpMurveglY-7LNKfiJRYWUPg7J2rS1YmNJ17kwadVtkyV9eISxo3hUe9Qyv20ZgkMOuSAOvxV_bdkqIBVuEJu3cRl9QWaN05ixyg'
+            },
+            body: JSON.stringify({
+                prompt: messageToSend,
+                sessionId: sessionId
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    };
+
+    const makeApiCallWithRetry = async (messageToSend: string, attemptCount = 0): Promise<any> => {
+        try {
+            return await makeApiCall(messageToSend);
+        } catch (error) {
+            if (error instanceof Error && error.message.includes('404') && attemptCount < MAX_RETRIES) {
+                console.log(`Attempt ${attemptCount + 1} failed, retrying after delay...`);
+                await delay(RETRY_DELAY);
+                return makeApiCallWithRetry(messageToSend, attemptCount + 1);
+            }
+            throw error;
+        }
+    };
+
     const sendMessage = async () => {
         if (!message.trim()) return;
         
@@ -146,90 +298,60 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
         setMessage('');
 
         try {
-            console.log('Making API call...');
-            const response = await fetch('http://35.183.142.12:8000/chat', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    session_id: sessionId,
-                    message: messageToSend,
-                }),
-            });
-
-            console.log('API response status:', response.status);
-            const responseText = await response.text();
-            console.log('Raw API response:', responseText);
-            
-            try {
-                const parsedResponse = JSON.parse(responseText);
-                console.log('Parsed API response:', parsedResponse);
-                await handleApiResponse(parsedResponse);
-            } catch (e) {
-                console.error('Failed to parse API response:', e);
-                const errorMessage: ChatMessage = {
-                    id: Date.now(),
-                    text: 'Error processing response',
-                    sender: 'bot',
-                };
-                setChatMessages(prev => [...prev, errorMessage]);
-            }
+            console.log('Making API call with retry logic...');
+            const responseData = await makeApiCallWithRetry(messageToSend);
+            await handleApiResponse(responseData);
         } catch (error) {
-            console.error('Error sending message:', error);
-            const errorMessage: ChatMessage = {
-                id: Date.now(),
-                text: `Error: ${error.message}`,
-                sender: 'bot',
-            };
-            setChatMessages(prev => [...prev, errorMessage]);
+            console.error('All retry attempts failed:', error);
+            // Don't show error to user, silently fail
         }
-    };
-
-    // const handleListingsPress = (listings: ListingData[]) => {
-    //     router.push({
-    //         pathname: '@app/camila/search-results',
-    //         params: { listings: encodeURIComponent(JSON.stringify(listings)) }
-    //     });
-    // };    
-
-    type ListingDataBasic = {
-        listing_id: string;
-        address: string;
-        list_price: number;
-        bedrooms_total: number;
-        bathrooms_total: number;
-        parking_features?: string[];
-        property_type: string;
-        media?: Array<{
-            MediaURL: string;
-            MediaType: string;
-        }>;
-        // Add coordinates
-        coordinates: {
-            latitude: number;
-            longitude: number;
-        };
     };
 
     const handleListingsPress = (listings: ListingData[]) => {
         try {
-            // Create a simplified version of the listings data
-            const basicListings: ListingDataBasic[] = listings.map(listing => ({
-                listing_id: listing.listing_id,
-                address: listing.address,
-                list_price: listing.list_price,
-                bedrooms_total: listing.bedrooms_total,
-                bathrooms_total: listing.bathrooms_total,
-                parking_features: listing.parking_features,
-                property_type: listing.property_type,
-                media: listing.media,
-                coordinates: listing.coordinates
-            }));
+            if (!Array.isArray(listings) || listings.length === 0) {
+                console.error('Invalid listings data:', listings);
+                return;
+            }
     
+            const basicListings = listings.map(listing => {
+                // Ensure all required properties have default values
+                const processedListing = {
+                    listing_id: listing.listing_id || '',
+                    address: listing.address || '',
+                    list_price: typeof listing.list_price === 'number' ? listing.list_price : 0,
+                    bedrooms_total: typeof listing.bedrooms_total === 'number' ? listing.bedrooms_total : 0,
+                    bathrooms_total: typeof listing.bathrooms_total === 'number' ? listing.bathrooms_total : 0,
+                    parking_features: Array.isArray(listing.parking_features) ? listing.parking_features : [],
+                    property_type: typeof listing.property_type === 'string' ? listing.property_type : 'Unknown',
+                    media: Array.isArray(listing.media) ? listing.media.map(media => ({
+                        MediaURL: media.MediaURL || '',
+                        MediaType: media.MediaCategory || 'Photo'
+                    })) : [],
+                    coordinates: {
+                        latitude: typeof listing.coordinates?.latitude === 'number' ? listing.coordinates.latitude : 0,
+                        longitude: typeof listing.coordinates?.longitude === 'number' ? listing.coordinates.longitude : 0
+                    },
+                    PublicRemarks: '',
+                    LotFeatures: [],
+                    City: listing.city || '',
+                    PostalCode: '',
+                    ParkingTotal: 0
+                };
+    
+                return processedListing;
+            });
+    
+            console.log('First processed listing:', basicListings[0]);
+
             const serializedListings = JSON.stringify(basicListings);
-            console.log('Navigating to search results with listings:', serializedListings.substring(0, 100) + '...');
-            
+            if (!serializedListings) {
+                throw new Error('Failed to serialize listings data');
+            }
+    
+            console.log('Navigation payload size:', serializedListings.length);
+            console.log('Sample of navigation payload:', serializedListings.substring(0, 200));
+    
             router.push({
                 pathname: '/camila/search-results',
                 params: {
@@ -237,11 +359,11 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
                 }
             });
         } catch (error) {
-            console.error('Error handling listings press:', error);
+            console.error('Error in handleListingsPress:', error);
         }
     };
 
-    const renderMessage = (msg: ChatMessage) => {
+    const renderMessage = (msg: ChatMessage, index: number) => {
         if (msg.listings && msg.listings.length > 0) {
             return (
                 <View key={msg.id} className="mb-4">
@@ -253,15 +375,25 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
                 </View>
             );
         }
-
+    
+        const isFirstInGroup = msg.sender === 'bot' && (
+            index === 0 ||
+            chatMessages[index - 1]?.sender !== 'bot' ||
+            msg.responseGroup !== chatMessages[index - 1]?.responseGroup
+        );
+    
         return (
             <View key={msg.id} className="mb-4">
                 <View className={`flex-row ${msg.sender === 'user' ? 'justify-end' : 'items-start'}`}>
                     {msg.sender === 'bot' && (
-                        <Image 
-                            source={require('@/assets/camila-avatar.jpg')}
-                            className="w-8 h-8 rounded-full mr-2"
-                        />
+                        <View className="w-8 h-8 mr-2">
+                            {isFirstInGroup && (
+                                <Image 
+                                    source={require('@/assets/camila-avatar.jpg')}
+                                    className="w-8 h-8 rounded-full absolute top-0 left-0"
+                                />
+                            )}
+                        </View>
                     )}
                     <View 
                         className={`px-5 py-3 rounded-xl max-w-[85%] ${
@@ -281,13 +413,22 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
                         } : {}}
                     >
                         <Text className="text-black text-[17px] leading-[22px]">
-                            {msg.text}
+                            {msg.sender === 'bot' ? msg.displayedText || '' : msg.text}
+                            {msg.isTyping && '▋'}
                         </Text>
                     </View>
                 </View>
             </View>
         );
     };
+
+    useEffect(() => {
+        return () => {
+            if (typingTimeoutRef.current) {
+                clearTimeout(typingTimeoutRef.current);
+            }
+        };
+    }, []);
 
     return (
         <KeyboardAvoidingView 
@@ -308,7 +449,7 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
                     onContentSizeChange={() => scrollToBottom()}
                     onLayout={() => scrollToBottom(false)}
                 >
-                    {chatMessages.map(msg => renderMessage(msg))}
+                    {chatMessages.map((msg, index) => renderMessage(msg, index))}
                 </ScrollView>
 
                 <View className="px-4 pb-6 pt-2">

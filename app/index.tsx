@@ -61,7 +61,7 @@ const App = () => {
                     <View className="space-y-3">
                         <TouchableOpacity 
                             className={`p-4 rounded-lg flex-row items-center justify-center border border-gray-300 ${isPressedEmail ? 'bg-[#5eead4]' : 'bg-white'}`}
-                            onPress={() => router.push("/user_auth/email-auth")}
+                            onPress={() => router.push("/user_auth/cognito-email-auth")}
                             onPressIn={() => setIsPressedEmail(true)}
                             onPressOut={() => setIsPressedEmail(false)}
                         >
