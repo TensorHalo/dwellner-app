@@ -1,10 +1,12 @@
-import { View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView, ViewStyle } from 'react-native';
+// @/components/ChatInterface.tsx
+import { View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import React, { useState, useRef, useEffect } from 'react';
 import { Feather as FeatherIcon } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
 import { ListingData } from '@/utils/firebase';
 import { useRouter } from 'expo-router';
 import ListingsButton from './ListingsButton';
+import { getCurrentSession } from '@/utils/cognitoConfig';
 
 const API_CONFIG = {
     API_ENDPOINT: 'https://api.dwellner.ca/api/v0/text_v2'
@@ -57,13 +59,84 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
     const [isShowingResponse, setIsShowingResponse] = useState(false);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const router = useRouter();
+    const [authTokens, setAuthTokens] = useState<{
+        accessToken: string;
+        idToken: string;
+    } | null>(null);
 
     const MAX_RETRIES = 500;  // Maximum number of retry attempts
-    const RETRY_DELAY = 200;  // Delay between retries in milliseconds
+    const RETRY_DELAY = 100;  // Delay between retries in milliseconds
 
     useEffect(() => {
         scrollToBottom();
     }, [chatMessages]);
+
+    useEffect(() => {
+        const fetchTokens = async () => {
+            try {
+                const session = await getCurrentSession();
+                if (session) {
+                    console.log('Auth Tokens Retrieved:', {
+                        accessToken: session.accessToken.substring(0, 20) + '...', // Log first 20 chars for security
+                        idToken: session.idToken.substring(0, 20) + '...',
+                    });
+                    
+                    setAuthTokens({
+                        accessToken: session.accessToken,
+                        idToken: session.idToken
+                    });
+                } else {
+                    console.error('No valid session found');
+                    router.replace('/user_auth/cognito-email-signin');
+                }
+            } catch (error) {
+                console.error('Error fetching tokens:', error);
+                router.replace('/user_auth/cognito-email-signin');
+            }
+        };
+        fetchTokens();
+    }, [router]);
+
+    const makeApiCall = async (messageToSend: string) => {
+        if (!authTokens) {
+            throw new Error('No authentication tokens available');
+        }
+
+        const response = await fetch(API_CONFIG.API_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json, text/plain, */*',
+                'Authorization': `Bearer ${authTokens.accessToken}`,
+                'id-token': authTokens.idToken
+            },
+            body: JSON.stringify({
+                prompt: messageToSend,
+                sessionId: sessionId
+            }),
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        return await response.json();
+    };
+
+    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    const makeApiCallWithRetry = async (messageToSend: string, attemptCount = 0): Promise<any> => {
+        try {
+            return await makeApiCall(messageToSend);
+        } catch (error) {
+            if (error instanceof Error && error.message.includes('404') && attemptCount < MAX_RETRIES) {
+                console.log(`Attempt ${attemptCount + 1} failed, retrying after delay...`);
+                await delay(RETRY_DELAY);
+                return makeApiCallWithRetry(messageToSend, attemptCount + 1);
+            }
+            throw error;
+        }
+    };
 
     const scrollToBottom = (animated = true) => {
         setTimeout(() => {
@@ -87,7 +160,7 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
                 const text = message.text;
                 for (let j = 0; j <= text.length; j++) {
                     await new Promise(resolve => {
-                        typingTimeoutRef.current = setTimeout(resolve, 5); // Adjust speed here
+                        typingTimeoutRef.current = setTimeout(resolve, 0); // Adjust speed here
                     });
 
                     setChatMessages(prev => prev.map((msg, index) =>
@@ -104,7 +177,8 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
                 ));
                 
                 await new Promise(resolve => {
-                    typingTimeoutRef.current = setTimeout(resolve, 300);
+                    const randomDelay = Math.floor(Math.random() * (200 - 100 + 1)) + 100;
+                    typingTimeoutRef.current = setTimeout(resolve, randomDelay);
                 });
             }
         }
@@ -238,43 +312,6 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
             setRecording(null);
         } catch (error) {
             console.error('Failed to stop recording:', error);
-        }
-    };
-
-    const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-    const makeApiCall = async (messageToSend: string) => {
-        const response = await fetch(API_CONFIG.API_ENDPOINT, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json, text/plain, */*',
-                'Authorization': 'Bearer eyJraWQiOiIzY200STgwMVpudWRiUkY0b2xyeFF3SU1NbkVsd2FWWHBqbDdMRFc2cHZNPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhYzZkMjUzOC0zMGYxLTcwYzYtNjBkZi03ZmE4MjcxOThkYTYiLCJpc3MiOiJodHRwczpcL1wvY29nbml0by1pZHAuY2EtY2VudHJhbC0xLmFtYXpvbmF3cy5jb21cL2NhLWNlbnRyYWwtMV82eEV2Q0RuVDYiLCJjbGllbnRfaWQiOiJ1OGthN3JncmRzamdmZmY4dWlvNWRlZzdrIiwib3JpZ2luX2p0aSI6ImVjMzc1MDg1LWIyMTMtNDRmMS04NjE1LWFlYTYzNGMxZDRiZSIsImV2ZW50X2lkIjoiMTMyZmRlNmItYTZjZS00NTQxLTgzMzAtYzQzMjc1MzkzMDcyIiwidG9rZW5fdXNlIjoiYWNjZXNzIiwic2NvcGUiOiJhd3MuY29nbml0by5zaWduaW4udXNlci5hZG1pbiIsImF1dGhfdGltZSI6MTczNTM3Njg5NywiZXhwIjoxNzM1NDYzMjk3LCJpYXQiOjE3MzUzNzY4OTcsImp0aSI6ImM2YTlhNTI2LWZjMjctNGY5YS1hMDY0LWM1ZTMzZDQwMTJkMiIsInVzZXJuYW1lIjoiYWM2ZDI1MzgtMzBmMS03MGM2LTYwZGYtN2ZhODI3MTk4ZGE2In0.MMzy5jFz9mfTxdtSstIcbSzR7DM4mUgT-ilwh7tptrnt0kBNy63Kr-QDBP5ai8Kfg-uZuMIwJZ65Xoy5DTuqQSg9rvnrWNf9niUls_rCfBls6_MA8oElChfMFkQWjkYMJVJMX5aEuHnHBK3rMyRXl5bUy7Ma93zGkjzLkI64pbO2yY7xkJScOYcj1M6OihxD1hWYjoJ8nNuj_WdPNinCfJMHhTpOyBf1kyYNLaATWq28uZKFouk9lU8IurBGF4WLL9j51kCi5480SJURJDUHMFgaEg8zQ05fs26m8GiaeQWrkqNuRhW9ZG6BGbNpdIBi7yyhT_SRpguLDxPlkgJSWQ',
-                'id-token': 'eyJraWQiOiJHREtXejFJVFhIY2JaQTFtV2R4aG8ra0pQdTd4bitpUVZUczczeUs5UW9BPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhYzZkMjUzOC0zMGYxLTcwYzYtNjBkZi03ZmE4MjcxOThkYTYiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiaXNzIjoiaHR0cHM6XC9cL2NvZ25pdG8taWRwLmNhLWNlbnRyYWwtMS5hbWF6b25hd3MuY29tXC9jYS1jZW50cmFsLTFfNnhFdkNEblQ2IiwiY29nbml0bzp1c2VybmFtZSI6ImFjNmQyNTM4LTMwZjEtNzBjNi02MGRmLTdmYTgyNzE5OGRhNiIsIm9yaWdpbl9qdGkiOiJlYzM3NTA4NS1iMjEzLTQ0ZjEtODYxNS1hZWE2MzRjMWQ0YmUiLCJhdWQiOiJ1OGthN3JncmRzamdmZmY4dWlvNWRlZzdrIiwiZXZlbnRfaWQiOiIxMzJmZGU2Yi1hNmNlLTQ1NDEtODMzMC1jNDMyNzUzOTMwNzIiLCJ0b2tlbl91c2UiOiJpZCIsImF1dGhfdGltZSI6MTczNTM3Njg5NywiZXhwIjoxNzM1NDYzMjk3LCJpYXQiOjE3MzUzNzY4OTcsImp0aSI6IjIyMDcyNTRkLWZkYmItNGIzYS1iZWNhLWY5OGQ4MTRmZDIyZSIsImVtYWlsIjoic3RlcGhlbkBkd2VsbG5lci5jb20ifQ.dLFgkqVgHBixkApRi7Ns2WJQu7wIaXPVxhl3YgcFiSTpxGTBpDfkM9oK_A5sb-t6yV8nLxM4JwtOSQ5EpR6zwhFF1dROj_FIR_4ePZyNHfbItsHS9j0r5cmtEa7faHAo9D1AUjWpD9JFPAAshrIzb_kh9DHk02PYedl4xNptQG0a_QsDrcETJaX1YaQ4tRQpLuWdJkrZNmr1ilbRoNN8K5CHx9SFTTmenZO_naZ7sfjsGpsxV-LpMurveglY-7LNKfiJRYWUPg7J2rS1YmNJ17kwadVtkyV9eISxo3hUe9Qyv20ZgkMOuSAOvxV_bdkqIBVuEJu3cRl9QWaN05ixyg'
-            },
-            body: JSON.stringify({
-                prompt: messageToSend,
-                sessionId: sessionId
-            }),
-        });
-
-        if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        return await response.json();
-    };
-
-    const makeApiCallWithRetry = async (messageToSend: string, attemptCount = 0): Promise<any> => {
-        try {
-            return await makeApiCall(messageToSend);
-        } catch (error) {
-            if (error instanceof Error && error.message.includes('404') && attemptCount < MAX_RETRIES) {
-                console.log(`Attempt ${attemptCount + 1} failed, retrying after delay...`);
-                await delay(RETRY_DELAY);
-                return makeApiCallWithRetry(messageToSend, attemptCount + 1);
-            }
-            throw error;
         }
     };
 

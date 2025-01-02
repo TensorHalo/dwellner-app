@@ -65,14 +65,14 @@ const CognitoSignIn = () => {
 
     const handleForgotPassword = () => {
         router.push({
-            pathname: "/user_auth/email-forgot-password",
+            pathname: "/user_auth/cognito-email-forgot-password",
             params: { email: userEmail }
         });
     };
 
     const handleLoginWithCode = () => {
         router.push({
-            pathname: "/user_auth/email-verify",
+            pathname: "/user_auth/cognito-email-code-login",
             params: { email: userEmail }
         });
     };

@@ -1,4 +1,5 @@
-import { View, Text, TouchableOpacity, TextInput, Pressable, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
+// @/app/user_auth/cognito-email-auth.tsx
+import { View, Text, TouchableOpacity, TextInput, Pressable, KeyboardAvoidingView, Platform, Keyboard, ActivityIndicator } from "react-native";
 import React, { useEffect, useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
@@ -35,12 +36,14 @@ const CognitoEmailAuth = () => {
     };
 
     const handleContinue = async () => {
-        if (!email.trim()) {
+        const trimmedEmail = email.trim().toLowerCase();
+        
+        if (!trimmedEmail) {
             setError("Please enter your email address");
             return;
         }
 
-        if (!validateEmail(email)) {
+        if (!validateEmail(trimmedEmail)) {
             setError("Please enter a valid email address");
             return;
         }
@@ -49,28 +52,32 @@ const CognitoEmailAuth = () => {
         setLoading(true);
 
         try {
-            console.log('Starting user existence check...');
-            const result = await checkUserExists(email);
+            console.log('Starting user check process...');
+            const result = await checkUserExists(trimmedEmail);
             console.log('User check result:', result);
             
             if (result.error) {
                 setError(result.error);
                 return;
             }
-            
-            // If user exists and is confirmed, go to signin
-            // If user doesn't exist or is unconfirmed, go to signup
-            if (result.exists && result.confirmed) {
+
+            if (!result.exists) {
+                console.log('New user, navigating to signup');
+                router.push({
+                    pathname: "/user_auth/cognito-email-verify",
+                    params: { email: trimmedEmail }
+                });
+            } else if (!result.confirmed) {
+                console.log('User exists but needs verification');
+                router.push({
+                    pathname: "/user_auth/cognito-email-verify",
+                    params: { email: trimmedEmail }
+                });
+            } else {
                 console.log('User exists and is confirmed, navigating to signin');
                 router.push({
                     pathname: "/user_auth/cognito-email-signin",
-                    params: { email }
-                });
-            } else {
-                console.log('User does not exist or is unconfirmed, navigating to signup');
-                router.push({
-                    pathname: "/user_auth/cognito-email-verify",
-                    params: { email }
+                    params: { email: trimmedEmail }
                 });
             }
         } catch (error) {
@@ -81,6 +88,7 @@ const CognitoEmailAuth = () => {
         }
     };
 
+    // Clear error when email changes
     useEffect(() => {
         if (error) {
             setError("");
@@ -159,9 +167,13 @@ const CognitoEmailAuth = () => {
                             onPress={handleContinue}
                             disabled={loading}
                         >
-                            <Text className="text-black font-semibold text-base">
-                                {loading ? 'Please wait...' : 'Continue'}
-                            </Text>
+                            {loading ? (
+                                <ActivityIndicator color="black" />
+                            ) : (
+                                <Text className="text-black font-semibold text-base">
+                                    Continue
+                                </Text>
+                            )}
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>

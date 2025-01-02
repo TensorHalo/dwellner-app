@@ -1,11 +1,13 @@
-// @/app/user_auth/cognito-email-verify.tsx
+// @/app/user_auth/email-code-login.tsx
 import { View, Text, TouchableOpacity, TextInput, Pressable, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
 import React, { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from '@expo/vector-icons';
-import { sendEmailVerificationCode, verifyEmailCode } from "@/utils/cognitoEmailVerify";
+import { sendLoginVerificationCode, verifyLoginCode } from "@/utils/cognitoEmailVerify";
+import { signIn } from "@/utils/cognitoConfig";
 
+// Re-use the CodeInput component from cognito-email-verify.tsx
 const CodeInput = ({ code, setCode, autoFocus, disabled }) => {
     const maxLength = 6;
     const codeArray = code.split('');
@@ -46,7 +48,7 @@ const CodeInput = ({ code, setCode, autoFocus, disabled }) => {
     );
 };
 
-const CognitoEmailVerify = () => {
+const EmailCodeLogin = () => {
     const router = useRouter();
     const { email } = useLocalSearchParams();
     const [code, setCode] = useState('');
@@ -62,8 +64,7 @@ const CognitoEmailVerify = () => {
             if (email && !resendDisabled) {
                 setLoading(true);
                 try {
-                    console.log('Sending initial code to:', email);
-                    const result = await sendEmailVerificationCode(email as string);
+                    const result = await sendLoginVerificationCode(email as string);
                     if (result.success) {
                         setResendDisabled(true);
                         setCountdown(30);
@@ -105,8 +106,7 @@ const CognitoEmailVerify = () => {
         if (!resendDisabled && !loading) {
             setLoading(true);
             try {
-                console.log('Resending code to:', email);
-                const result = await sendEmailVerificationCode(email as string);
+                const result = await sendLoginVerificationCode(email as string);
                 if (result.success) {
                     setResendDisabled(true);
                     setCountdown(30);
@@ -143,21 +143,12 @@ const CognitoEmailVerify = () => {
         if (code.length === 6 && !loading) {
             setLoading(true);
             try {
-                const result = await verifyEmailCode(email as string, code);
-                
-                if (result.success) {
-                    setError('');
-                    // After email verification, route to signup for password creation
-                    router.push({
-                        pathname: "/user_auth/cognito-email-signup",
-                        params: { 
-                            email,
-                            emailVerified: "true",  // Indicates email is verified but account not confirmed
-                            tempCode: code  // Pass verification code to complete signup
-                        }
-                    });
+                const verifyResult = await verifyLoginCode(email as string, code);
+                if (verifyResult.success) {
+                    // If verification successful, redirect to home
+                    router.replace("/camila/home");
                 } else {
-                    setError(result.error || 'Invalid code. Please try again.');
+                    setError(verifyResult.error || 'Invalid code. Please try again.');
                     setCode('');
                 }
             } catch (error) {
@@ -252,7 +243,7 @@ const CognitoEmailVerify = () => {
                             onPress={handleVerification}
                             disabled={code.length !== 6 || loading}
                         >
-                            <Text className="text-black font-semibold text-base">
+                            <Text className="text-white font-semibold text-base">
                                 {loading ? 'Verifying...' : 'Continue'}
                             </Text>
                         </TouchableOpacity>
@@ -277,4 +268,4 @@ const CognitoEmailVerify = () => {
     );
 };
 
-export default CognitoEmailVerify;
+export default EmailCodeLogin;

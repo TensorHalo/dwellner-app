@@ -22,6 +22,7 @@
     "@react-native-google-signin/google-signin": "^13.1.0",
     "@types/react": "~18.2.45",
     "amazon-cognito-identity-js": "^6.3.12",
+    "aws-sdk": "^2.1692.0",
     "expo": "~51.0.39",
     "expo-auth-session": "~5.5.2",
     "expo-av": "~14.0.7",

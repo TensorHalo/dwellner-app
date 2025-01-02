@@ -1,295 +1,250 @@
-import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserAttribute } from 'amazon-cognito-identity-js';
+// @/utils/cognitoConfig.ts
+import 'react-native-get-random-values';
+import AWS from 'aws-sdk';
+import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession } from 'amazon-cognito-identity-js';
 
-// Cognito Configuration
+// const poolConfig = {
+//     UserPoolId: 'ca-central-1_SU1CkywRI',
+//     ClientId: '2jq4ra1nagnurhvecbn9gmaj04',
+//     Region: 'ca-central-1'
+// };
+
 const poolConfig = {
-    UserPoolId: 'ca-central-1_SU1CkywRI',
-    ClientId: '2jq4ra1nagnurhvecbn9gmaj04'
+    UserPoolId: 'ca-central-1_K6lc1Lk4K',
+    ClientId: '5p90ba62k37iju5d76tt09t09b',
+    Region: 'ca-central-1'
 };
 
-// Initialize the user pool with explicit region
 const userPool = new CognitoUserPool({
-    ...poolConfig,
-    Region: 'ca-central-1'
+    UserPoolId: poolConfig.UserPoolId,
+    ClientId: poolConfig.ClientId
 });
 
-// Interface for authentication responses
+AWS.config.update({
+    region: poolConfig.Region,
+    credentials: new AWS.Credentials({
+        accessKeyId: 'AKIAWDARUP7MHJ5IRB3Y',
+        secretAccessKey: '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'
+    })
+});
+
+const cognitoIdentityServiceProvider = new AWS.CognitoIdentityServiceProvider();
+
 interface AuthResponse {
     success?: boolean;
     error?: string;
     user?: any;
     exists?: boolean;
     confirmed?: boolean;
+    isNewUser?: boolean;
+    requiresNewPassword?: boolean;
+    session?: {
+        accessToken: string;
+        idToken: string;
+        refreshToken: string;
+    };
 }
 
-/**
- * Check if a user exists and their status in Cognito
- */
-export const checkUserExists = async (email: string): Promise<AuthResponse> => {
-    console.log('Checking user status:', email);
-    
-    return new Promise((resolve) => {
-        const userData = {
-            Username: email.toLowerCase(),
-            Pool: userPool
-        };
-
-        const cognitoUser = new CognitoUser(userData);
-        const authDetails = new AuthenticationDetails({
-            Username: email.toLowerCase(),
-            Password: 'dummyPassword123!' // Dummy password to trigger auth flow
-        });
-
-        cognitoUser.authenticateUser(authDetails, {
-            onSuccess: () => {
-                // This should never happen with dummy password
-                console.log('User exists and is confirmed');
-                resolve({ exists: true, confirmed: true });
-            },
-            onFailure: (err) => {
-                console.log('Authentication check response:', err);
-                
-                switch (err.code) {
-                    case 'UserNotFoundException':
-                        console.log('User does not exist');
-                        resolve({ exists: false, confirmed: false });
-                        break;
-                        
-                    case 'UserNotConfirmedException':
-                        console.log('User exists but is not confirmed');
-                        resolve({ exists: true, confirmed: false });
-                        break;
-                        
-                    case 'NotAuthorizedException':
-                        // Wrong password means user exists and is confirmed
-                        console.log('User exists and is confirmed');
-                        resolve({ exists: true, confirmed: true });
-                        break;
-                        
-                    case 'PasswordResetRequiredException':
-                        console.log('User exists but needs password reset');
-                        resolve({ exists: true, confirmed: true });
-                        break;
-                        
-                    default:
-                        console.log('Unexpected error:', err);
-                        // Handle rate limiting and other errors gracefully
-                        resolve({ 
-                            error: 'Unable to check user status. Please try again later.',
-                            exists: false,
-                            confirmed: false
-                        });
-                }
-            }
-        });
-    });
-};
-
-/**
- * Sign up a new user in Cognito
- */
-export const signUp = async (email: string, password: string): Promise<AuthResponse> => {
-    console.log('Starting signup process for:', email);
-
-    // First check if user already exists
-    const userStatus = await checkUserExists(email);
-    
-    if (userStatus.exists && userStatus.confirmed) {
-        return {
-            success: false,
-            error: 'An account with this email already exists',
-            exists: true,
-            confirmed: true
-        };
-    }
+export const getCurrentSession = async (): Promise<AuthResponse['session'] | null> => {
+    const currentUser = userPool.getCurrentUser();
+    if (!currentUser) return null;
 
     return new Promise((resolve) => {
-        const attributeList = [
-            new CognitoUserAttribute({
-                Name: 'email',
-                Value: email.toLowerCase()
-            })
-        ];
-
-        userPool.signUp(email.toLowerCase(), password, attributeList, [], (err, result) => {
-            if (err) {
-                console.error('Signup error:', err);
-                resolve({
-                    success: false,
-                    error: err.message || 'An error occurred during signup'
-                });
+        currentUser.getSession((err: Error | null, session: CognitoUserSession | null) => {
+            if (err || !session) {
+                resolve(null);
                 return;
             }
 
-            console.log('Signup successful:', result);
             resolve({
-                success: true,
-                user: result?.user,
-                exists: true,
-                confirmed: false
+                accessToken: session.getAccessToken().getJwtToken(),
+                idToken: session.getIdToken().getJwtToken(),
+                refreshToken: session.getRefreshToken().getToken()
             });
         });
     });
 };
 
-/**
- * Sign in an existing user
- */
-export const signIn = async (email: string, password: string): Promise<AuthResponse> => {
-    console.log('Starting signin process for:', email);
-
-    return new Promise((resolve) => {
-        const userData = {
-            Username: email.toLowerCase(),
-            Pool: userPool
+export const checkUserExists = async (email: string): Promise<AuthResponse> => {
+    console.log('Checking if user exists:', email);
+    
+    try {
+        const params = {
+            UserPoolId: poolConfig.UserPoolId,
+            Username: email.toLowerCase()
         };
 
-        const cognitoUser = new CognitoUser(userData);
+        const response = await cognitoIdentityServiceProvider.adminGetUser(params).promise();
+        const isConfirmed = response.UserStatus === 'CONFIRMED';
+        const requiresNewPassword = response.UserStatus === 'FORCE_CHANGE_PASSWORD';
+        
+        console.log('User status:', response.UserStatus);
+        
+        return {
+            exists: true,
+            confirmed: isConfirmed,
+            isNewUser: false,
+            requiresNewPassword
+        };
+    } catch (error: any) {
+        if (error.code === 'UserNotFoundException') {
+            return {
+                exists: false,
+                confirmed: false,
+                isNewUser: true,
+                requiresNewPassword: false
+            };
+        }
+        throw error;
+    }
+};
+
+export const completeNewUserSignup = async (email: string, password: string): Promise<AuthResponse> => {
+    console.log('Starting signup completion for:', email);
+    
+    try {
+        // Set the permanent password first
+        try {
+            await cognitoIdentityServiceProvider.adminSetUserPassword({
+                UserPoolId: poolConfig.UserPoolId,
+                Username: email.toLowerCase(),
+                Password: password,
+                Permanent: true
+            }).promise();
+            console.log('Password set successfully');
+        } catch (error: any) {
+            // If error is not about user being confirmed, throw it
+            if (!error.message.includes('User cannot be confirmed')) {
+                throw error;
+            }
+            console.log('Password set with confirmed user warning');
+        }
+
+        // Get current user status after password set
+        const userInfo = await cognitoIdentityServiceProvider.adminGetUser({
+            UserPoolId: poolConfig.UserPoolId,
+            Username: email.toLowerCase()
+        }).promise();
+
+        // If user isn't confirmed yet, confirm them
+        if (userInfo.UserStatus !== 'CONFIRMED') {
+            try {
+                await cognitoIdentityServiceProvider.adminConfirmSignUp({
+                    UserPoolId: poolConfig.UserPoolId,
+                    Username: email.toLowerCase()
+                }).promise();
+                console.log('User confirmed successfully');
+            } catch (error: any) {
+                // Ignore "already confirmed" errors
+                if (!error.message.includes('User cannot be confirmed')) {
+                    throw error;
+                }
+                console.log('User was already confirmed');
+            }
+        }
+
+        // Update email_verified attribute
+        await cognitoIdentityServiceProvider.adminUpdateUserAttributes({
+            UserPoolId: poolConfig.UserPoolId,
+            Username: email.toLowerCase(),
+            UserAttributes: [
+                {
+                    Name: 'email_verified',
+                    Value: 'true'
+                }
+            ]
+        }).promise();
+
+        // Return success even if some operations were skipped due to user state
+        return {
+            success: true,
+            confirmed: true,
+            isNewUser: true
+        };
+
+    } catch (error: any) {
+        console.error('Error in completeNewUserSignup:', error);
+        
+        // Check if the error is just about confirmation
+        if (error.code === 'NotAuthorizedException' && 
+            error.message.includes('User cannot be confirmed')) {
+            // If it's just about confirmation, consider it a success
+            return {
+                success: true,
+                confirmed: true,
+                isNewUser: true
+            };
+        }
+
+        return {
+            success: false,
+            error: error.message || 'Failed to complete signup'
+        };
+    }
+};
+
+export const signIn = async (email: string, password: string): Promise<AuthResponse> => {
+    return new Promise((resolve) => {
+        const cognitoUser = new CognitoUser({
+            Username: email.toLowerCase(),
+            Pool: userPool
+        });
+
         const authDetails = new AuthenticationDetails({
             Username: email.toLowerCase(),
             Password: password
         });
 
         cognitoUser.authenticateUser(authDetails, {
-            onSuccess: (result) => {
-                console.log('Authentication successful');
+            onSuccess: (session) => {
                 resolve({
                     success: true,
                     user: cognitoUser,
-                    confirmed: true
+                    confirmed: true,
+                    session: {
+                        accessToken: session.getAccessToken().getJwtToken(),
+                        idToken: session.getIdToken().getJwtToken(),
+                        refreshToken: session.getRefreshToken().getToken()
+                    }
                 });
             },
             onFailure: (err) => {
-                console.error('Authentication error:', err);
-                
-                switch (err.code) {
-                    case 'UserNotConfirmedException':
+                resolve({
+                    success: false,
+                    error: err.message || 'An error occurred during sign in',
+                    confirmed: false
+                });
+            },
+            newPasswordRequired: (userAttributes, requiredAttributes) => {
+                delete userAttributes.email_verified;
+                delete userAttributes.email;
+
+                cognitoUser.completeNewPasswordChallenge(password, userAttributes, {
+                    onSuccess: (session) => {
+                        resolve({
+                            success: true,
+                            user: cognitoUser,
+                            confirmed: true,
+                            session: {
+                                accessToken: session.getAccessToken().getJwtToken(),
+                                idToken: session.getIdToken().getJwtToken(),
+                                refreshToken: session.getRefreshToken().getToken()
+                            }
+                        });
+                    },
+                    onFailure: (err) => {
                         resolve({
                             success: false,
-                            error: 'Please verify your email first',
-                            exists: true,
+                            error: 'Failed to setup new password. Please try again.',
                             confirmed: false
                         });
-                        break;
-                        
-                    case 'NotAuthorizedException':
-                        resolve({
-                            success: false,
-                            error: 'Incorrect email or password',
-                            exists: true,
-                            confirmed: true
-                        });
-                        break;
-                        
-                    case 'UserNotFoundException':
-                        resolve({
-                            success: false,
-                            error: 'Incorrect email or password',
-                            exists: false,
-                            confirmed: false
-                        });
-                        break;
-                        
-                    default:
-                        resolve({
-                            success: false,
-                            error: 'An error occurred during sign in. Please try again.',
-                            confirmed: false
-                        });
-                }
+                    }
+                });
             }
         });
     });
 };
 
-/**
- * Confirm user signup with verification code
- */
-export const confirmSignUp = async (email: string, code: string): Promise<AuthResponse> => {
-    console.log('Starting signup confirmation for:', email);
-
-    return new Promise((resolve) => {
-        const userData = {
-            Username: email.toLowerCase(),
-            Pool: userPool
-        };
-
-        const cognitoUser = new CognitoUser(userData);
-
-        cognitoUser.confirmRegistration(code, true, (err, result) => {
-            if (err) {
-                console.error('Confirmation error:', err);
-                
-                if (err.code === 'ExpiredCodeException') {
-                    resolve({
-                        success: false,
-                        error: 'Verification code has expired. Please request a new one.'
-                    });
-                } else if (err.code === 'CodeMismatchException') {
-                    resolve({
-                        success: false,
-                        error: 'Invalid verification code. Please try again.'
-                    });
-                } else {
-                    resolve({
-                        success: false,
-                        error: 'Failed to verify code. Please try again.'
-                    });
-                }
-                return;
-            }
-
-            console.log('Confirmation successful:', result);
-            resolve({
-                success: true,
-                confirmed: true
-            });
-        });
-    });
-};
-
-/**
- * Request a new verification code
- */
-export const resendVerificationCode = async (email: string): Promise<AuthResponse> => {
-    console.log('Requesting new verification code for:', email);
-
-    return new Promise((resolve) => {
-        const userData = {
-            Username: email.toLowerCase(),
-            Pool: userPool
-        };
-
-        const cognitoUser = new CognitoUser(userData);
-
-        cognitoUser.resendConfirmationCode((err, result) => {
-            if (err) {
-                console.error('Error resending code:', err);
-                
-                if (err.code === 'LimitExceededException') {
-                    resolve({
-                        success: false,
-                        error: 'Too many attempts. Please try again later.'
-                    });
-                } else {
-                    resolve({
-                        success: false,
-                        error: 'Failed to send verification code. Please try again.'
-                    });
-                }
-                return;
-            }
-
-            console.log('Code resent successfully:', result);
-            resolve({
-                success: true
-            });
-        });
-    });
-};
-
-/**
- * Sign out the current user
- */
 export const signOut = async (): Promise<void> => {
     const currentUser = userPool.getCurrentUser();
     if (currentUser) {
