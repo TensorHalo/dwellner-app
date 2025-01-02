@@ -3,7 +3,7 @@ import { View, Text, TextInput, TouchableOpacity, Image, KeyboardAvoidingView, P
 import React, { useState, useRef, useEffect } from 'react';
 import { Feather as FeatherIcon } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
-import { ListingData } from '@/utils/firebase';
+import { ListingData } from '@/utils/listingData';
 import { useRouter } from 'expo-router';
 import ListingsButton from './ListingsButton';
 import { getCurrentSession } from '@/utils/cognitoConfig';
