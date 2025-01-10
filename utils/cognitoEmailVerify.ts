@@ -3,8 +3,9 @@ import { CognitoUserPool, CognitoUser, CognitoUserAttribute } from 'amazon-cogni
 import AWS from 'aws-sdk';
 
 const poolConfig = {
-    UserPoolId: 'ca-central-1_K6lc1Lk4K',
-    ClientId: '5p90ba62k37iju5d76tt09t09b'
+    UserPoolId: 'us-east-1_wHcEk9kP8',
+    ClientId: '25lbf1t46emi9b4g51c6du5kkn',
+    Region: 'us-east-1'
 };
 
 const userPool = new CognitoUserPool(poolConfig);

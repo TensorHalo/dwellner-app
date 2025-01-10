@@ -87,11 +87,11 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
                     });
                 } else {
                     console.error('No valid session found');
-                    router.replace('/user_auth/cognito-email-signin');
+                    router.replace('/user_auth/cognito-email-auth');
                 }
             } catch (error) {
                 console.error('Error fetching tokens:', error);
-                router.replace('/user_auth/cognito-email-signin');
+                router.replace('/user_auth/cognito-email-auth');
             }
         };
         fetchTokens();
@@ -107,8 +107,10 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json, text/plain, */*',
-                'Authorization': `Bearer ${authTokens.accessToken}`,
-                'id-token': authTokens.idToken
+                // 'Authorization': `Bearer ${authTokens.accessToken}`,
+                'Authorization': 'Bearer eyJraWQiOiIzY200STgwMVpudWRiUkY0b2xyeFF3SU1NbkVsd2FWWHBqbDdMRFc2cHZNPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhYzZkMjUzOC0zMGYxLTcwYzYtNjBkZi03ZmE4MjcxOThkYTYiLCJpc3MiOiJodHRwczpcL1wvY29nbml0by1pZHAuY2EtY2VudHJhbC0xLmFtYXpvbmF3cy5jb21cL2NhLWNlbnRyYWwtMV82eEV2Q0RuVDYiLCJjbGllbnRfaWQiOiJ1OGthN3JncmRzamdmZmY4dWlvNWRlZzdrIiwib3JpZ2luX2p0aSI6ImU3NzlkZDIyLTRiNzYtNDc5Yy1hZGIwLWQwMmE5OTllYjY1YSIsImV2ZW50X2lkIjoiZmFlZDY1NmUtNWRmNi00ZTE2LWIxNGYtNjg3YWVhN2EzMzAzIiwidG9rZW5fdXNlIjoiYWNjZXNzIiwic2NvcGUiOiJhd3MuY29nbml0by5zaWduaW4udXNlci5hZG1pbiIsImF1dGhfdGltZSI6MTczNTk1OTc5MywiZXhwIjoxNzM2MDQ2MTkzLCJpYXQiOjE3MzU5NTk3OTMsImp0aSI6IjU5MjJhOWFhLTUxN2ItNDQ1ZC1hOTdlLTE2M2NiOGJhNDQwMCIsInVzZXJuYW1lIjoiYWM2ZDI1MzgtMzBmMS03MGM2LTYwZGYtN2ZhODI3MTk4ZGE2In0.arzJrbp4md5WUqyQEhuEfN6FmHY7raMBjaDWxt-j0quwsto6aZyrT0BntoCTxh_lv1GUYGnZO8qU3GORvTZCAMd7FEMHHFtCoIFZMsrNNNY1FSppui7pXzehmmM51ykZYEGqKUPXdaW_zbqEBk1wL-1uHaDJDjqplamNk7T2ic5zGEBJHgbsJFhZkR6thhNcW0nDYHrApJ6dHRYHTLhTISByBlSyOPASrSFNpOim3dGDtXpsJXDZMeoFEXP_FNgsA8VKmd-4PPOoXX5bMj8hM9PIb1a7qoUUgOP-MaamPMGJzplEJqV0YEzIeJS3HQaLjzrmdzO_-jjoADzzyN59kg',
+                // 'id-token': authTokens.idToken
+                'id-token': 'eyJraWQiOiJHREtXejFJVFhIY2JaQTFtV2R4aG8ra0pQdTd4bitpUVZUczczeUs5UW9BPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhYzZkMjUzOC0zMGYxLTcwYzYtNjBkZi03ZmE4MjcxOThkYTYiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiaXNzIjoiaHR0cHM6XC9cL2NvZ25pdG8taWRwLmNhLWNlbnRyYWwtMS5hbWF6b25hd3MuY29tXC9jYS1jZW50cmFsLTFfNnhFdkNEblQ2IiwiY29nbml0bzp1c2VybmFtZSI6ImFjNmQyNTM4LTMwZjEtNzBjNi02MGRmLTdmYTgyNzE5OGRhNiIsIm9yaWdpbl9qdGkiOiJlNzc5ZGQyMi00Yjc2LTQ3OWMtYWRiMC1kMDJhOTk5ZWI2NWEiLCJhdWQiOiJ1OGthN3JncmRzamdmZmY4dWlvNWRlZzdrIiwiZXZlbnRfaWQiOiJmYWVkNjU2ZS01ZGY2LTRlMTYtYjE0Zi02ODdhZWE3YTMzMDMiLCJ0b2tlbl91c2UiOiJpZCIsImF1dGhfdGltZSI6MTczNTk1OTc5MywiZXhwIjoxNzM2MDQ2MTkzLCJpYXQiOjE3MzU5NTk3OTMsImp0aSI6IjJkYzBmZjE3LWMyNTUtNDFlYy04ODQzLWFlZGQyMGZiOThkYSIsImVtYWlsIjoic3RlcGhlbkBkd2VsbG5lci5jb20ifQ.u_EZQB4HudcVFnvUBiwK-ITs6iw3b2mDTaIf7DcNIz9xBDBTZ9BFtYnUVgAugNZpFguqj-TkJbLz4TikMG3W3LfG9Cu-Rbmvsd5GyDFuj_TFeVDc8IYB1eaikGiSANc5KxT9L0nL4hOXqCB5IwyfjG-xdDH_4pzKaPbaz55MAO10w7i2wFccibLlo5GBOKhMRy0jnnTgSGLS7NS-T3RtYswNjRo3P9awqcJ-VNkr4Cmlr8Xfgh0MBGkNlHbIOpYJbQxuteuyFQTiVgOiwAjr_uXG_M1tFvFStEyM6-XZP9aB_m-u4uNrcUqwzvFsrcsowcASn_1pFAsXsKA6_i6EoA'
             },
             body: JSON.stringify({
                 prompt: messageToSend,
@@ -129,7 +131,7 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
         try {
             return await makeApiCall(messageToSend);
         } catch (error) {
-            if (error instanceof Error && error.message.includes('404') && attemptCount < MAX_RETRIES) {
+            if (error instanceof Error && (error.message.includes('404') || error.message.includes('500')) && attemptCount < MAX_RETRIES) {
                 console.log(`Attempt ${attemptCount + 1} failed, retrying after delay...`);
                 await delay(RETRY_DELAY);
                 return makeApiCallWithRetry(messageToSend, attemptCount + 1);
@@ -212,7 +214,6 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
                     // Animate first message
                     await animateResponse([firstMessage]);
     
-                    // Then add listings if available
                     if (responseData.response[0].show_listings_flag && Array.isArray(responseData.response[0].listing)) {
                         const listings = responseData.response[0].listing.map((listing: any) => ({
                             listing_id: listing.ListingId,

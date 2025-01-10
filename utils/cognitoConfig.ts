@@ -4,15 +4,15 @@ import AWS from 'aws-sdk';
 import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession } from 'amazon-cognito-identity-js';
 
 // const poolConfig = {
-//     UserPoolId: 'ca-central-1_SU1CkywRI',
-//     ClientId: '2jq4ra1nagnurhvecbn9gmaj04',
+//     UserPoolId: 'ca-central-1_K6lc1Lk4K',
+//     ClientId: '5p90ba62k37iju5d76tt09t09b',
 //     Region: 'ca-central-1'
 // };
 
 const poolConfig = {
-    UserPoolId: 'ca-central-1_K6lc1Lk4K',
-    ClientId: '5p90ba62k37iju5d76tt09t09b',
-    Region: 'ca-central-1'
+    UserPoolId: 'us-east-1_wHcEk9kP8',
+    ClientId: '25lbf1t46emi9b4g51c6du5kkn',
+    Region: 'us-east-1'
 };
 
 const userPool = new CognitoUserPool({
@@ -155,11 +155,16 @@ export const completeNewUserSignup = async (email: string, password: string): Pr
             ]
         }).promise();
 
-        // Return success even if some operations were skipped due to user state
+        const signInResult = await signIn(email, password);
+        if (!signInResult.success) {
+            throw new Error(signInResult.error || 'Failed to sign in after signup');
+        }
+
         return {
             success: true,
             confirmed: true,
-            isNewUser: true
+            isNewUser: true,
+            session: signInResult.session
         };
 
     } catch (error: any) {

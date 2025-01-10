@@ -73,7 +73,7 @@ const App = () => {
 
                         <TouchableOpacity 
                             className={`p-4 rounded-lg flex-row items-center justify-center border border-gray-300 ${isPressedPhone ? 'bg-[#5eead4]' : 'bg-white'}`}
-                            onPress={() => router.push("/user_auth/phone-auth")}
+                            onPress={() => router.push("/user_auth/cognito-phone-auth")}
                             onPressIn={() => setIsPressedPhone(true)}
                             onPressOut={() => setIsPressedPhone(false)}
                         >
@@ -85,7 +85,7 @@ const App = () => {
 
                         <TouchableOpacity 
                             className={`p-4 rounded-lg flex-row items-center justify-center border border-gray-300 ${isPressedGoogle ? 'bg-[#5eead4]' : 'bg-white'}`}
-                            onPress={() => router.push("/user_auth/google-auth")}
+                            onPress={() => router.push("/user_auth/cognito-google-auth")}
                             onPressIn={() => setIsPressedGoogle(true)}
                             onPressOut={() => setIsPressedGoogle(false)}
                         >
