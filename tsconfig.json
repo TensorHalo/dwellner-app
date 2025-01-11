@@ -5,7 +5,9 @@
         "paths": {
             "@/*": ["./*"],
             "@firebase/auth": ["./node_modules/@firebase/auth/dist/index.rn.d.ts"]
-        }
+        },
+        "types": ["node"],
+        "esModuleInterop": true
     },
     "include": ["**/*.ts", "**/*.tsx", "app.d.ts"]
 }

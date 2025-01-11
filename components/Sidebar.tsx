@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Feather as FeatherIcon } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import UserSettings from './user-settings';
+// import UserSettings from './user-settings';
 
 interface SidebarProps {
     onClose: () => void;
@@ -44,10 +44,10 @@ const Sidebar = ({ onClose }: SidebarProps) => {
                 </View>
             </View>
 
-            <UserSettings 
+            {/* <UserSettings 
                 visible={isSettingsVisible}
                 onClose={() => setIsSettingsVisible(false)}
-            />
+            /> */}
         </SafeAreaView>
     );
 };

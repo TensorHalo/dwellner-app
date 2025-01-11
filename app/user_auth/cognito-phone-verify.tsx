@@ -50,6 +50,7 @@ const CognitoPhoneVerify = () => {
     const router = useRouter();
     const { phoneNumber, callingCode } = useLocalSearchParams();
     const [code, setCode] = useState('');
+    const [sessionId, setSessionId] = useState('');
     const [keyboardVisible, setKeyboardVisible] = useState(false);
     const [resendDisabled, setResendDisabled] = useState(false);
     const [countdown, setCountdown] = useState(0);
@@ -64,8 +65,12 @@ const CognitoPhoneVerify = () => {
             if (phoneNumber && !resendDisabled) {
                 setLoading(true);
                 try {
+                    console.log('Initiating verification for:', fullPhoneNumber);
                     const result = await initiatePhoneVerification(fullPhoneNumber);
-                    if (result.success) {
+                    console.log('Verification initiation result:', result);
+
+                    if (result.success && result.sessionId) {
+                        setSessionId(result.sessionId);
                         setResendDisabled(true);
                         setCountdown(30);
                         setCode('');
@@ -74,7 +79,7 @@ const CognitoPhoneVerify = () => {
                         setError(result.error || 'Failed to send verification code');
                     }
                 } catch (error: any) {
-                    console.error('Error sending initial code:', error);
+                    console.error('Error sending code:', error);
                     setError('Failed to send verification code');
                 } finally {
                     setLoading(false);
@@ -85,6 +90,7 @@ const CognitoPhoneVerify = () => {
         sendInitialCode();
     }, [phoneNumber, callingCode]);
 
+    // Keyboard event listeners
     useEffect(() => {
         const keyboardWillShow = Keyboard.addListener(
             Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -107,13 +113,14 @@ const CognitoPhoneVerify = () => {
             setLoading(true);
             try {
                 const result = await resendPhoneCode(fullPhoneNumber);
-                if (result.success) {
+                if (result.success && result.sessionId) {
+                    setSessionId(result.sessionId);
                     setResendDisabled(true);
                     setCountdown(30);
                     setCode('');
                     setError('');
                 } else {
-                    setError(result.error || 'Failed to send code. Please try again.');
+                    setError(result.error || 'Failed to resend code');
                 }
             } catch (error: any) {
                 console.error('Error resending code:', error);
@@ -124,6 +131,7 @@ const CognitoPhoneVerify = () => {
         }
     };
 
+    // Countdown timer
     useEffect(() => {
         if (countdown > 0) {
             const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -133,6 +141,7 @@ const CognitoPhoneVerify = () => {
         }
     }, [countdown]);
 
+    // Clear error when code changes
     useEffect(() => {
         if (error && code.length > 0) {
             setError('');
@@ -140,13 +149,21 @@ const CognitoPhoneVerify = () => {
     }, [code]);
 
     const handleVerification = async () => {
-        if (code.length === 6 && !loading) {
+        if (code.length === 6 && !loading && sessionId) {
             setLoading(true);
             try {
-                const result = await verifyPhoneCode(fullPhoneNumber, code);
-                
-                if (result.success) {
-                    // After phone verification, route to onboarding
+                console.log('Verifying code for:', fullPhoneNumber);
+                const result = await verifyPhoneCode(fullPhoneNumber, code, sessionId);
+                console.log('Verification result:', result);
+
+                if (result.success && result.session) {
+                    // Store tokens in secure storage
+                    await AsyncStorage.setItem('userTokens', JSON.stringify({
+                        accessToken: result.session.accessToken,
+                        idToken: result.session.idToken,
+                        refreshToken: result.session.refreshToken
+                    }));
+
                     router.push("/user_auth/onboarding");
                 } else {
                     setError(result.error || 'Invalid code. Please try again.');
@@ -159,6 +176,8 @@ const CognitoPhoneVerify = () => {
             } finally {
                 setLoading(false);
             }
+        } else if (!sessionId) {
+            setError('Session expired. Please request a new code.');
         }
     };
 
@@ -185,12 +204,10 @@ const CognitoPhoneVerify = () => {
 
                 {/* Main Content */}
                 <View className="flex-1 px-4">
-                    {/* Icon */}
                     <View className="mt-4 mb-6">
                         <MaterialIcons name="shield" size={32} color="#666666" />
                     </View>
 
-                    {/* Title and subtitle */}
                     <Text className="text-2xl font-semibold mb-2">
                         Enter code
                     </Text>
@@ -201,7 +218,6 @@ const CognitoPhoneVerify = () => {
                         {fullPhoneNumber}
                     </Text>
 
-                    {/* Code Input */}
                     <CodeInput 
                         code={code}
                         setCode={setCode}
@@ -209,7 +225,6 @@ const CognitoPhoneVerify = () => {
                         disabled={loading}
                     />
 
-                    {/* Resend option */}
                     <View className="flex-row items-center justify-start">
                         <Text className="text-gray-500">
                             Didn't receive a code?
@@ -224,7 +239,6 @@ const CognitoPhoneVerify = () => {
                         </TouchableOpacity>
                     </View>
 
-                    {/* Error message */}
                     {error ? (
                         <Text className="text-red-500 text-sm text-center mt-4">
                             {error}

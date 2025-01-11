@@ -1,6 +1,5 @@
 // @/utils/cognitoPhoneVerify.ts
 import AWS from 'aws-sdk';
-import { CognitoUserPool, CognitoUser, CognitoUserAttribute } from 'amazon-cognito-identity-js';
 
 const poolConfig = {
     UserPoolId: 'us-east-1_wHcEk9kP8',
@@ -8,100 +7,108 @@ const poolConfig = {
     Region: 'us-east-1'
 };
 
-const userPool = new CognitoUserPool({
-    UserPoolId: poolConfig.UserPoolId,
-    ClientId: poolConfig.ClientId
+const cognito = new AWS.CognitoIdentityServiceProvider({
+    region: poolConfig.Region,
+    credentials: new AWS.Credentials({
+        accessKeyId: 'AKIAWDARUP7MHJ5IRB3Y',
+        secretAccessKey: '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'
+    })
 });
 
 interface VerifyResponse {
     success: boolean;
     error?: string;
-    codeDelivered?: boolean;
+    sessionId?: string;
+    session?: {
+        accessToken: string;
+        idToken: string;
+        refreshToken: string;
+    };
 }
 
+const debugLog = (message: string, data?: any) => {
+    console.log(`[VERIFY DEBUG] ${message}`, data ? JSON.stringify(data, null, 2) : '');
+};
+
 export const initiatePhoneVerification = async (phoneNumber: string): Promise<VerifyResponse> => {
-    console.log('Initiating phone verification for:', phoneNumber);
-    
     try {
-        // First, check if user exists
-        const cognitoUser = new CognitoUser({
-            Username: phoneNumber,
-            Pool: userPool
-        });
+        // Only use USER_AUTH flow for authentication
+        debugLog('Starting USER_AUTH flow for:', phoneNumber);
+        const authResult = await cognito.initiateAuth({
+            AuthFlow: 'USER_AUTH',
+            ClientId: poolConfig.ClientId,
+            AuthParameters: {
+                USERNAME: phoneNumber
+            }
+        }).promise();
+        debugLog('Auth initiated:', authResult);
 
-        // Try to send verification code
-        // If user doesn't exist, it will create one
-        await new Promise((resolve, reject) => {
-            const attributeList = [
-                new CognitoUserAttribute({
-                    Name: 'phone_number',
-                    Value: phoneNumber
-                })
-            ];
+        if (!authResult.Session) {
+            throw new Error('No session received');
+        }
 
-            userPool.signUp(
-                phoneNumber,
-                Math.random().toString(36).slice(-8) + 'Aa1!', // temporary password
-                attributeList,
-                null,
-                (err, result) => {
-                    if (err) {
-                        // If user exists, try resending the code
-                        if (err.code === 'UsernameExistsException') {
-                            cognitoUser.resendConfirmationCode((resendErr, resendResult) => {
-                                if (resendErr) {
-                                    reject(resendErr);
-                                    return;
-                                }
-                                resolve(resendResult);
-                            });
-                            return;
-                        }
-                        reject(err);
-                        return;
-                    }
-                    resolve(result);
-                }
-            );
-        });
+        // Select SMS_OTP challenge
+        const challengeResult = await cognito.respondToAuthChallenge({
+            ChallengeName: 'SELECT_CHALLENGE',
+            ClientId: poolConfig.ClientId,
+            ChallengeResponses: {
+                USERNAME: phoneNumber,
+                ANSWER: 'SMS_OTP'
+            },
+            Session: authResult.Session
+        }).promise();
+        debugLog('Challenge selected:', challengeResult);
+
+        if (!challengeResult.Session) {
+            throw new Error('No session received from challenge');
+        }
 
         return {
             success: true,
-            codeDelivered: true
+            sessionId: challengeResult.Session
         };
+
     } catch (error: any) {
-        console.error('Error in initiatePhoneVerification:', error);
+        debugLog('Error in initiatePhoneVerification:', error);
         return {
             success: false,
-            error: error.message || 'Failed to send verification code'
+            error: error.message || 'Failed to start verification'
         };
     }
 };
 
-export const verifyPhoneCode = async (phoneNumber: string, code: string): Promise<VerifyResponse> => {
-    console.log('Verifying phone code for:', phoneNumber);
-    
+export const verifyPhoneCode = async (
+    phoneNumber: string,
+    code: string,
+    sessionId: string
+): Promise<VerifyResponse> => {
     try {
-        const cognitoUser = new CognitoUser({
-            Username: phoneNumber,
-            Pool: userPool
-        });
+        debugLog('Verifying code:', { phoneNumber, code: '******' });
+        const result = await cognito.respondToAuthChallenge({
+            ChallengeName: 'SMS_OTP',
+            ClientId: poolConfig.ClientId,
+            ChallengeResponses: {
+                USERNAME: phoneNumber,
+                SMS_OTP_CODE: code
+            },
+            Session: sessionId
+        }).promise();
+        debugLog('Verification response:', result);
 
-        await new Promise((resolve, reject) => {
-            cognitoUser.confirmRegistration(code, true, (err, result) => {
-                if (err) {
-                    reject(err);
-                    return;
-                }
-                resolve(result);
-            });
-        });
+        if (!result.AuthenticationResult) {
+            throw new Error('No authentication result received');
+        }
 
         return {
-            success: true
+            success: true,
+            session: {
+                accessToken: result.AuthenticationResult.AccessToken,
+                idToken: result.AuthenticationResult.IdToken,
+                refreshToken: result.AuthenticationResult.RefreshToken
+            }
         };
     } catch (error: any) {
-        console.error('Error in verifyPhoneCode:', error);
+        debugLog('Error in verifyPhoneCode:', error);
         return {
             success: false,
             error: error.code === 'CodeMismatchException' 
@@ -112,33 +119,6 @@ export const verifyPhoneCode = async (phoneNumber: string, code: string): Promis
 };
 
 export const resendPhoneCode = async (phoneNumber: string): Promise<VerifyResponse> => {
-    console.log('Resending phone code to:', phoneNumber);
-    
-    try {
-        const cognitoUser = new CognitoUser({
-            Username: phoneNumber,
-            Pool: userPool
-        });
-
-        await new Promise((resolve, reject) => {
-            cognitoUser.resendConfirmationCode((err, result) => {
-                if (err) {
-                    reject(err);
-                    return;
-                }
-                resolve(result);
-            });
-        });
-
-        return {
-            success: true,
-            codeDelivered: true
-        };
-    } catch (error: any) {
-        console.error('Error in resendPhoneCode:', error);
-        return {
-            success: false,
-            error: error.message || 'Failed to resend code'
-        };
-    }
+    debugLog('Resending code for:', phoneNumber);
+    return initiatePhoneVerification(phoneNumber);
 };
