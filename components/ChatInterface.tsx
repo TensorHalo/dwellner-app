@@ -7,9 +7,10 @@ import { ListingData } from '@/utils/listingData';
 import { useRouter } from 'expo-router';
 import ListingsButton from './ListingsButton';
 import { getCurrentSession } from '@/utils/cognitoConfig';
+import { getAuthTokens } from '@/utils/authTokens';
 
 const API_CONFIG = {
-    API_ENDPOINT: 'https://api.dwellner.ca/api/v0/text_v2'
+    CHAT_API_ENDPOINT: 'https://api.dwellner.ca/api/v0/text_v4'
 };
 
 interface ChatMessage {
@@ -74,24 +75,24 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
     useEffect(() => {
         const fetchTokens = async () => {
             try {
-                const session = await getCurrentSession();
-                if (session) {
+                const tokens = await getAuthTokens();
+                if (tokens) {
                     console.log('Auth Tokens Retrieved:', {
-                        accessToken: session.accessToken.substring(0, 20) + '...', // Log first 20 chars for security
-                        idToken: session.idToken.substring(0, 20) + '...',
+                        accessToken: tokens.accessToken.substring(0, 20) + '...',
+                        idToken: tokens.idToken.substring(0, 20) + '...',
                     });
                     
                     setAuthTokens({
-                        accessToken: session.accessToken,
-                        idToken: session.idToken
+                        accessToken: tokens.accessToken,
+                        idToken: tokens.idToken
                     });
                 } else {
                     console.error('No valid session found');
-                    router.replace('/user_auth/cognito-email-auth');
+                    router.replace('/');
                 }
             } catch (error) {
                 console.error('Error fetching tokens:', error);
-                router.replace('/user_auth/cognito-email-auth');
+                router.replace('/');
             }
         };
         fetchTokens();
@@ -102,15 +103,15 @@ const ChatInterface = ({ onChatStart }: ChatInterfaceProps) => {
             throw new Error('No authentication tokens available');
         }
 
-        const response = await fetch(API_CONFIG.API_ENDPOINT, {
+        const response = await fetch(API_CONFIG.CHAT_API_ENDPOINT, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
                 'Accept': 'application/json, text/plain, */*',
                 // 'Authorization': `Bearer ${authTokens.accessToken}`,
-                'Authorization': 'Bearer eyJraWQiOiIzY200STgwMVpudWRiUkY0b2xyeFF3SU1NbkVsd2FWWHBqbDdMRFc2cHZNPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhYzZkMjUzOC0zMGYxLTcwYzYtNjBkZi03ZmE4MjcxOThkYTYiLCJpc3MiOiJodHRwczpcL1wvY29nbml0by1pZHAuY2EtY2VudHJhbC0xLmFtYXpvbmF3cy5jb21cL2NhLWNlbnRyYWwtMV82eEV2Q0RuVDYiLCJjbGllbnRfaWQiOiJ1OGthN3JncmRzamdmZmY4dWlvNWRlZzdrIiwib3JpZ2luX2p0aSI6ImU3NzlkZDIyLTRiNzYtNDc5Yy1hZGIwLWQwMmE5OTllYjY1YSIsImV2ZW50X2lkIjoiZmFlZDY1NmUtNWRmNi00ZTE2LWIxNGYtNjg3YWVhN2EzMzAzIiwidG9rZW5fdXNlIjoiYWNjZXNzIiwic2NvcGUiOiJhd3MuY29nbml0by5zaWduaW4udXNlci5hZG1pbiIsImF1dGhfdGltZSI6MTczNTk1OTc5MywiZXhwIjoxNzM2MDQ2MTkzLCJpYXQiOjE3MzU5NTk3OTMsImp0aSI6IjU5MjJhOWFhLTUxN2ItNDQ1ZC1hOTdlLTE2M2NiOGJhNDQwMCIsInVzZXJuYW1lIjoiYWM2ZDI1MzgtMzBmMS03MGM2LTYwZGYtN2ZhODI3MTk4ZGE2In0.arzJrbp4md5WUqyQEhuEfN6FmHY7raMBjaDWxt-j0quwsto6aZyrT0BntoCTxh_lv1GUYGnZO8qU3GORvTZCAMd7FEMHHFtCoIFZMsrNNNY1FSppui7pXzehmmM51ykZYEGqKUPXdaW_zbqEBk1wL-1uHaDJDjqplamNk7T2ic5zGEBJHgbsJFhZkR6thhNcW0nDYHrApJ6dHRYHTLhTISByBlSyOPASrSFNpOim3dGDtXpsJXDZMeoFEXP_FNgsA8VKmd-4PPOoXX5bMj8hM9PIb1a7qoUUgOP-MaamPMGJzplEJqV0YEzIeJS3HQaLjzrmdzO_-jjoADzzyN59kg',
+                'Authorization': 'Bearer eyJraWQiOiIzY200STgwMVpudWRiUkY0b2xyeFF3SU1NbkVsd2FWWHBqbDdMRFc2cHZNPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhYzZkMjUzOC0zMGYxLTcwYzYtNjBkZi03ZmE4MjcxOThkYTYiLCJpc3MiOiJodHRwczpcL1wvY29nbml0by1pZHAuY2EtY2VudHJhbC0xLmFtYXpvbmF3cy5jb21cL2NhLWNlbnRyYWwtMV82eEV2Q0RuVDYiLCJjbGllbnRfaWQiOiJ1OGthN3JncmRzamdmZmY4dWlvNWRlZzdrIiwib3JpZ2luX2p0aSI6IjcyMDVhOTQzLTY3ZWUtNDI4Ni1iYzY5LTUyZDI1MTMzMWVjOCIsImV2ZW50X2lkIjoiMTU4NzIxYjktZTY3Zi00YzlkLWI0M2ItODAzM2JmOGFhY2M1IiwidG9rZW5fdXNlIjoiYWNjZXNzIiwic2NvcGUiOiJhd3MuY29nbml0by5zaWduaW4udXNlci5hZG1pbiIsImF1dGhfdGltZSI6MTczNjgzOTk1NCwiZXhwIjoxNzM2OTI2MzU0LCJpYXQiOjE3MzY4Mzk5NTQsImp0aSI6ImVmY2E5MGQzLTFlZjYtNDNkOC04YjUxLWZkYWNmOGIxZTE5ZCIsInVzZXJuYW1lIjoiYWM2ZDI1MzgtMzBmMS03MGM2LTYwZGYtN2ZhODI3MTk4ZGE2In0.h4tZ7WkImpRpg-Ktnaz2Pqn5KBP4VuTgDyolYYr8nCsJSZX1F3VxH0Ww3A9KLapBRCfiMEgI4FTBN29EvmIoeXJhfP6tLifVpkfvoPTN1APJf33BfOT6K3bLmBfjkszTC1LjSmzxlfDDfVm0xV_-MDGuvhBymNVPaVl-Ng8uQbYxG38KrXty1zQEH3oZ6wPYn1vESixihhaHxU-GBK54AHye5lk5VvlJfxQIe5gocgL_5rAFLHAquOoeWOKF7S2dzrviK-C3qlTZNaCM3H5q4HJtLZR7-PFm6bFIetaDWzQ36XcuGvQOGGOcShAnHbTXb7j__jDU2jtD7Zyfy44tTw',
                 // 'id-token': authTokens.idToken
-                'id-token': 'eyJraWQiOiJHREtXejFJVFhIY2JaQTFtV2R4aG8ra0pQdTd4bitpUVZUczczeUs5UW9BPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhYzZkMjUzOC0zMGYxLTcwYzYtNjBkZi03ZmE4MjcxOThkYTYiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiaXNzIjoiaHR0cHM6XC9cL2NvZ25pdG8taWRwLmNhLWNlbnRyYWwtMS5hbWF6b25hd3MuY29tXC9jYS1jZW50cmFsLTFfNnhFdkNEblQ2IiwiY29nbml0bzp1c2VybmFtZSI6ImFjNmQyNTM4LTMwZjEtNzBjNi02MGRmLTdmYTgyNzE5OGRhNiIsIm9yaWdpbl9qdGkiOiJlNzc5ZGQyMi00Yjc2LTQ3OWMtYWRiMC1kMDJhOTk5ZWI2NWEiLCJhdWQiOiJ1OGthN3JncmRzamdmZmY4dWlvNWRlZzdrIiwiZXZlbnRfaWQiOiJmYWVkNjU2ZS01ZGY2LTRlMTYtYjE0Zi02ODdhZWE3YTMzMDMiLCJ0b2tlbl91c2UiOiJpZCIsImF1dGhfdGltZSI6MTczNTk1OTc5MywiZXhwIjoxNzM2MDQ2MTkzLCJpYXQiOjE3MzU5NTk3OTMsImp0aSI6IjJkYzBmZjE3LWMyNTUtNDFlYy04ODQzLWFlZGQyMGZiOThkYSIsImVtYWlsIjoic3RlcGhlbkBkd2VsbG5lci5jb20ifQ.u_EZQB4HudcVFnvUBiwK-ITs6iw3b2mDTaIf7DcNIz9xBDBTZ9BFtYnUVgAugNZpFguqj-TkJbLz4TikMG3W3LfG9Cu-Rbmvsd5GyDFuj_TFeVDc8IYB1eaikGiSANc5KxT9L0nL4hOXqCB5IwyfjG-xdDH_4pzKaPbaz55MAO10w7i2wFccibLlo5GBOKhMRy0jnnTgSGLS7NS-T3RtYswNjRo3P9awqcJ-VNkr4Cmlr8Xfgh0MBGkNlHbIOpYJbQxuteuyFQTiVgOiwAjr_uXG_M1tFvFStEyM6-XZP9aB_m-u4uNrcUqwzvFsrcsowcASn_1pFAsXsKA6_i6EoA'
+                // 'id-token': 'eyJraWQiOiJHREtXejFJVFhIY2JaQTFtV2R4aG8ra0pQdTd4bitpUVZUczczeUs5UW9BPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhYzZkMjUzOC0zMGYxLTcwYzYtNjBkZi03ZmE4MjcxOThkYTYiLCJlbWFpbF92ZXJpZmllZCI6dHJ1ZSwiaXNzIjoiaHR0cHM6XC9cL2NvZ25pdG8taWRwLmNhLWNlbnRyYWwtMS5hbWF6b25hd3MuY29tXC9jYS1jZW50cmFsLTFfNnhFdkNEblQ2IiwiY29nbml0bzp1c2VybmFtZSI6ImFjNmQyNTM4LTMwZjEtNzBjNi02MGRmLTdmYTgyNzE5OGRhNiIsIm9yaWdpbl9qdGkiOiJlNzc5ZGQyMi00Yjc2LTQ3OWMtYWRiMC1kMDJhOTk5ZWI2NWEiLCJhdWQiOiJ1OGthN3JncmRzamdmZmY4dWlvNWRlZzdrIiwiZXZlbnRfaWQiOiJmYWVkNjU2ZS01ZGY2LTRlMTYtYjE0Zi02ODdhZWE3YTMzMDMiLCJ0b2tlbl91c2UiOiJpZCIsImF1dGhfdGltZSI6MTczNTk1OTc5MywiZXhwIjoxNzM2MDQ2MTkzLCJpYXQiOjE3MzU5NTk3OTMsImp0aSI6IjJkYzBmZjE3LWMyNTUtNDFlYy04ODQzLWFlZGQyMGZiOThkYSIsImVtYWlsIjoic3RlcGhlbkBkd2VsbG5lci5jb20ifQ.u_EZQB4HudcVFnvUBiwK-ITs6iw3b2mDTaIf7DcNIz9xBDBTZ9BFtYnUVgAugNZpFguqj-TkJbLz4TikMG3W3LfG9Cu-Rbmvsd5GyDFuj_TFeVDc8IYB1eaikGiSANc5KxT9L0nL4hOXqCB5IwyfjG-xdDH_4pzKaPbaz55MAO10w7i2wFccibLlo5GBOKhMRy0jnnTgSGLS7NS-T3RtYswNjRo3P9awqcJ-VNkr4Cmlr8Xfgh0MBGkNlHbIOpYJbQxuteuyFQTiVgOiwAjr_uXG_M1tFvFStEyM6-XZP9aB_m-u4uNrcUqwzvFsrcsowcASn_1pFAsXsKA6_i6EoA'
             },
             body: JSON.stringify({
                 prompt: messageToSend,

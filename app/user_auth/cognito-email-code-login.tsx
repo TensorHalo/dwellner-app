@@ -5,7 +5,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from '@expo/vector-icons';
 import { sendLoginVerificationCode, verifyLoginCode } from "@/utils/cognitoEmailVerify";
-import { signIn } from "@/utils/cognitoConfig";
+import { signIn, getCognitoUserId } from "@/utils/cognitoConfig";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { PendingAuthData } from "@/types/user";
 
 // Re-use the CodeInput component from cognito-email-verify.tsx
 const CodeInput = ({ code, setCode, autoFocus, disabled }) => {
@@ -145,8 +147,19 @@ const EmailCodeLogin = () => {
             try {
                 const verifyResult = await verifyLoginCode(email as string, code);
                 if (verifyResult.success) {
-                    // If verification successful, redirect to home
-                    router.replace("/camila/home");
+                    const cognitoId = await getCognitoUserId(email as string);
+                    if (cognitoId) {
+                        const pendingData: PendingAuthData = {
+                            type: 'EMAIL_CODE_LOGIN',
+                            cognito_id: cognitoId,
+                            email: email as string,
+                            timestamp: new Date().toISOString()
+                        };
+                        await AsyncStorage.setItem('pendingUserData', JSON.stringify(pendingData));
+                        router.replace("/camila/home");
+                    } else {
+                        throw new Error('Failed to get user ID');
+                    }
                 } else {
                     setError(verifyResult.error || 'Invalid code. Please try again.');
                     setCode('');

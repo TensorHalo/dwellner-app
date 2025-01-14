@@ -149,11 +149,11 @@ const CognitoEmailVerify = () => {
                     setError('');
                     // After email verification, route to signup for password creation
                     router.push({
-                        pathname: "/user_auth/cognito-email-signup",
+                        pathname: "/user_auth/user-info",
                         params: { 
                             email,
-                            emailVerified: "true",  // Indicates email is verified but account not confirmed
-                            tempCode: code  // Pass verification code to complete signup
+                            emailVerified: "true",
+                            verificationCode: code
                         }
                     });
                 } else {
@@ -252,7 +252,7 @@ const CognitoEmailVerify = () => {
                             onPress={handleVerification}
                             disabled={code.length !== 6 || loading}
                         >
-                            <Text className="text-black font-semibold text-base">
+                            <Text className="text-white font-semibold text-base">
                                 {loading ? 'Verifying...' : 'Continue'}
                             </Text>
                         </TouchableOpacity>

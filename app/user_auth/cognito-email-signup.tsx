@@ -5,11 +5,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from '@expo/vector-icons';
 import { completeNewUserSignup } from "@/utils/cognitoConfig";
+import { UserInfoFormData, PendingAuthData } from "@/types/user";
+import { prepareUserDataForDB } from "@/utils/dynamodbEmailUtils";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { storeAuthTokens } from "@/utils/authTokens";
 
-interface Params {
+interface RouterParams {
     email?: string;
-    emailVerified?: string;
-    tempCode?: string;
+    verificationCode?: string;
+    userInfo?: string;
 }
 
 const PasswordRequirement = ({ met, text }: { met: boolean; text: string }) => (
@@ -27,26 +31,23 @@ const PasswordRequirement = ({ met, text }: { met: boolean; text: string }) => (
 
 const CognitoSignUp = () => {
     const router = useRouter();
-    const params = useLocalSearchParams<Params>();
+    const params = useLocalSearchParams<RouterParams>();
     const [password, setPassword] = useState("");
     const [showPassword, setShowPassword] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [keyboardVisible, setKeyboardVisible] = useState(false);
 
-    const userEmail = typeof params.email === 'string' ? params.email : '';
-    const emailVerified = params.emailVerified === 'true';
-    const verificationCode = typeof params.tempCode === 'string' ? params.tempCode : '';
+    const email = params.email;
+    const verificationCode = params.verificationCode;
+    const userInfo = params.userInfo ? JSON.parse(params.userInfo) as UserInfoFormData : undefined;
 
     useEffect(() => {
-        if (!emailVerified || !verificationCode) {
-            console.log('Missing required params, redirecting to verification');
-            router.replace({
-                pathname: "/user_auth/cognito-email-verify",
-                params: { email: userEmail }
-            });
+        if (!email || !verificationCode || !userInfo) {
+            console.error('Missing required params:', { email, verificationCode, userInfo });
+            router.replace("/user_auth/cognito-email-auth");
         }
-    }, [userEmail, emailVerified, verificationCode]);
+    }, [email, verificationCode, userInfo]);
 
     useEffect(() => {
         const keyboardWillShow = Keyboard.addListener(
@@ -79,50 +80,64 @@ const CognitoSignUp = () => {
         hasNumber && 
         hasSpecialChar;
 
-    const handleCreateAccount = async () => {
-        if (!password.trim()) {
-            setError("Please enter a password");
-            return;
-        }
-
-        if (!allRequirementsMet) {
-            setError("Please meet all password requirements");
-            return;
-        }
-
-        setError("");
-        setLoading(true);
-
-        try {
-            console.log('Attempting to complete signup for:', userEmail);
-            const result = await completeNewUserSignup(userEmail, password);
-            
-            if (result.success) {
-                console.log('Signup completed successfully');
-                router.replace("/user_auth/onboarding");
-            } else if (result.error?.toLowerCase().includes('already confirmed')) {
-                // If the error is just about confirmation but password was set, proceed
-                console.log('User already confirmed but password set successfully');
-                router.replace("/user_auth/onboarding");
-            } else {
-                console.error('Signup failed:', result.error);
-                setError(result.error || "Failed to create account");
+        const handleCreateAccount = async () => {
+            if (!password.trim()) {
+                setError("Please enter a password");
+                return;
             }
-        } catch (err) {
-            console.error('Account creation error:', err);
-            const errorMessage = err instanceof Error ? err.message : "Failed to create account. Please try again.";
-            
-            // If the error message indicates the user is already confirmed but password was set
-            if (errorMessage.toLowerCase().includes('already confirmed')) {
-                console.log('User already confirmed but password may be set');
-                router.replace("/user_auth/onboarding");
-            } else {
-                setError(errorMessage);
+        
+            if (!allRequirementsMet) {
+                setError("Please meet all password requirements");
+                return;
             }
-        } finally {
-            setLoading(false);
-        }
-    };
+        
+            setError("");
+            setLoading(true);
+        
+            try {
+                const result = await completeNewUserSignup(email, password);
+                
+                if (result.success) {
+                    await storeAuthTokens(result.session);
+        
+                    const completeUserData = prepareUserDataForDB(
+                        result.user.username,
+                        email,
+                        userInfo
+                    );
+        
+                    const pendingData: PendingAuthData = {
+                        type: 'SIGNUP',
+                        cognito_id: result.user?.username || '',
+                        email: email,
+                        timestamp: new Date().toISOString(),
+                        userData: completeUserData // Include the complete user data
+                    };
+        
+                    await AsyncStorage.setItem('pendingUserData', JSON.stringify(pendingData));
+                    console.log('Signup completed successfully');
+                    router.replace("/user_auth/onboarding");
+                } else if (result.error?.toLowerCase().includes('already confirmed')) {
+                    console.log('User already confirmed but password set successfully');
+                    router.replace("/user_auth/onboarding");
+                } else {
+                    console.error('Signup failed:', result.error);
+                    setError(result.error || "Failed to create account");
+                }
+            } catch (err) {
+                console.error('Account creation error:', err);
+                const errorMessage = err instanceof Error ? err.message : "Failed to create account. Please try again.";
+                
+                if (errorMessage.toLowerCase().includes('already confirmed')) {
+                    console.log('User already confirmed but password may be set');
+                    router.replace("/user_auth/onboarding");
+                } else {
+                    setError(errorMessage);
+                }
+            } finally {
+                setLoading(false);
+            }
+        };
 
     return (
         <View style={{ flex: 1, backgroundColor: 'white' }}>
@@ -215,7 +230,7 @@ const CognitoSignUp = () => {
                             onPress={handleCreateAccount}
                             disabled={loading || !allRequirementsMet}
                         >
-                            <Text className="text-black font-semibold text-base">
+                            <Text className="text-white font-semibold text-base">
                                 {loading ? 'Creating account...' : 'Create Account'}
                             </Text>
                         </TouchableOpacity>

@@ -170,7 +170,7 @@ const CognitoEmailAuth = () => {
                             {loading ? (
                                 <ActivityIndicator color="black" />
                             ) : (
-                                <Text className="text-black font-semibold text-base">
+                                <Text className="text-white font-semibold text-base">
                                     Continue
                                 </Text>
                             )}

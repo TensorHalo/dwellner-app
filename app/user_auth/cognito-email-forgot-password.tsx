@@ -5,14 +5,18 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from '@expo/vector-icons';
 import { CognitoUser, CognitoUserPool } from 'amazon-cognito-identity-js';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getCognitoUserId } from "@/utils/cognitoConfig";
+import { PendingAuthData } from "@/types/user";
 
 interface Params {
     email?: string;
 }
 
 const poolConfig = {
-    UserPoolId: 'ca-central-1_K6lc1Lk4K',
-    ClientId: '5p90ba62k37iju5d76tt09t09b'
+    UserPoolId: 'us-east-1_wHcEk9kP8',
+    ClientId: '25lbf1t46emi9b4g51c6du5kkn',
+    Region: 'us-east-1'
 };
 
 const userPool = new CognitoUserPool(poolConfig);
@@ -115,18 +119,26 @@ const CognitoForgotPassword = () => {
                 Username: userEmail.toLowerCase(),
                 Pool: userPool
             });
-
+    
             await new Promise<void>((resolve, reject) => {
                 cognitoUser.confirmPassword(verificationCode, newPassword, {
-                    onSuccess: () => {
+                    onSuccess: async () => {
+                        const cognitoId = await getCognitoUserId(userEmail);
+                        if (cognitoId) {
+                            const pendingData: PendingAuthData = {
+                                type: 'PASSWORD_RESET',
+                                cognito_id: cognitoId,
+                                email: userEmail,
+                                timestamp: new Date().toISOString()
+                            };
+                            await AsyncStorage.setItem('pendingUserData', JSON.stringify(pendingData));
+                        }
                         resolve();
                     },
-                    onFailure: (err) => {
-                        reject(err);
-                    }
+                    onFailure: reject
                 });
-            });
-
+            });    
+    
             setSuccess(true);
             setTimeout(() => {
                 router.push({

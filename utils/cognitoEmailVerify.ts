@@ -1,21 +1,22 @@
 // @/utils/cognitoVerify.ts
-import { CognitoUserPool, CognitoUser, CognitoUserAttribute } from 'amazon-cognito-identity-js';
+import { CognitoUserPool, CognitoUser, CognitoUserAttribute, AuthenticationDetails } from 'amazon-cognito-identity-js';
 import AWS from 'aws-sdk';
-
-const poolConfig = {
-    UserPoolId: 'us-east-1_wHcEk9kP8',
-    ClientId: '25lbf1t46emi9b4g51c6du5kkn',
-    Region: 'us-east-1'
-};
-
-const userPool = new CognitoUserPool(poolConfig);
-const cognitoIdentityServiceProvider = new AWS.CognitoIdentityServiceProvider();
+import { userPool, poolConfig, cognitoIdentityServiceProvider } from './cognitoConfig';
+import { storeAuthTokens } from './authTokens';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getCognitoUserId } from './cognitoConfig';
+import { PendingAuthData } from '@/types/user';
 
 interface VerifyResponse {
     success: boolean;
     error?: string;
     isNewUser?: boolean;
     codeDelivered?: boolean;
+    session?: {
+        accessToken: string;
+        idToken: string;
+        refreshToken: string;
+    };
 }
 
 const createUserAndSendCode = async (email: string): Promise<VerifyResponse> => {
@@ -214,7 +215,6 @@ export const sendLoginVerificationCode = async (email: string): Promise<VerifyRe
             Username: email.toLowerCase()
         }).promise();
 
-        // Verify user is confirmed and email is verified
         const emailVerified = userInfo.UserAttributes.find(
             attr => attr.Name === 'email_verified'
         )?.Value === 'true';
@@ -227,29 +227,33 @@ export const sendLoginVerificationCode = async (email: string): Promise<VerifyRe
             };
         }
 
-        // Send verification code
-        const cognitoUser = new CognitoUser({
-            Username: email.toLowerCase(),
-            Pool: userPool
-        });
+        const otp = Math.floor(100000 + Math.random() * 900000).toString();
 
-        return new Promise((resolve) => {
-            cognitoUser.forgotPassword({
-                onSuccess: () => {
-                    resolve({
-                        success: true,
-                        codeDelivered: true
-                    });
-                },
-                onFailure: (err) => {
-                    console.error('Failed to send verification code:', err);
-                    resolve({
-                        success: false,
-                        error: err.message || 'Failed to send verification code'
-                    });
+        await cognitoIdentityServiceProvider.adminUpdateUserAttributes({
+            UserPoolId: poolConfig.UserPoolId,
+            Username: email.toLowerCase(),
+            UserAttributes: [
+                {
+                    Name: 'custom:login_code',
+                    Value: otp
                 }
-            });
-        });
+            ]
+        }).promise();
+
+        await cognitoIdentityServiceProvider.adminInitiateAuth({
+            AuthFlow: 'CUSTOM_AUTH',
+            ClientId: poolConfig.ClientId,
+            UserPoolId: poolConfig.UserPoolId,
+            AuthParameters: {
+                USERNAME: email.toLowerCase()
+            }
+        }).promise();
+
+        return {
+            success: true,
+            codeDelivered: true
+        };
+
     } catch (error: any) {
         console.error('Error in sendLoginVerificationCode:', error);
         if (error.code === 'UserNotFoundException') {
@@ -269,33 +273,76 @@ export const verifyLoginCode = async (email: string, code: string): Promise<Veri
     console.log('Verifying login code for:', email);
     
     try {
-        const cognitoUser = new CognitoUser({
-            Username: email.toLowerCase(),
-            Pool: userPool
-        });
+        const userInfo = await cognitoIdentityServiceProvider.adminGetUser({
+            UserPoolId: poolConfig.UserPoolId,
+            Username: email.toLowerCase()
+        }).promise();
 
-        // We'll use a temporary password and change it immediately
-        const tempPassword = Math.random().toString(36).slice(-8) + 'Aa1!';
+        const storedCode = userInfo.UserAttributes.find(
+            attr => attr.Name === 'custom:login_code'
+        )?.Value;
 
-        return new Promise((resolve) => {
-            cognitoUser.confirmPassword(code, tempPassword, {
-                onSuccess: () => {
-                    // Auto-login after successful verification
-                    resolve({
-                        success: true
-                    });
-                },
-                onFailure: (err) => {
-                    console.error('Failed to verify code:', err);
-                    resolve({
-                        success: false,
-                        error: err.code === 'CodeMismatchException' 
-                            ? 'Invalid verification code' 
-                            : (err.message || 'Failed to verify code')
-                    });
-                }
-            });
-        });
+        if (!storedCode || code !== storedCode) {
+            return {
+                success: false,
+                error: 'Invalid verification code'
+            };
+        }
+
+        // Initiate custom auth with OTP
+        const authResult = await cognitoIdentityServiceProvider.adminRespondToAuthChallenge({
+            ChallengeName: 'CUSTOM_CHALLENGE',
+            ClientId: poolConfig.ClientId,
+            UserPoolId: poolConfig.UserPoolId,
+            ChallengeResponses: {
+                USERNAME: email.toLowerCase(),
+                ANSWER: code
+            }
+        }).promise();
+
+        if (authResult.AuthenticationResult) {
+            // Store tokens
+            const tokens = {
+                accessToken: authResult.AuthenticationResult.AccessToken,
+                idToken: authResult.AuthenticationResult.IdToken,
+                refreshToken: authResult.AuthenticationResult.RefreshToken
+            };
+            await storeAuthTokens(tokens);
+
+            // Clear the OTP
+            await cognitoIdentityServiceProvider.adminUpdateUserAttributes({
+                UserPoolId: poolConfig.UserPoolId,
+                Username: email.toLowerCase(),
+                UserAttributes: [
+                    {
+                        Name: 'custom:login_code',
+                        Value: ''
+                    }
+                ]
+            }).promise();
+
+            // Store pending data for DynamoDB update
+            const cognitoId = await getCognitoUserId(email);
+            if (cognitoId) {
+                const pendingData: PendingAuthData = {
+                    type: 'EMAIL_CODE_LOGIN',
+                    cognito_id: cognitoId,
+                    email: email,
+                    timestamp: new Date().toISOString()
+                };
+                await AsyncStorage.setItem('pendingUserData', JSON.stringify(pendingData));
+            }
+
+            return {
+                success: true,
+                session: tokens
+            };
+        } else {
+            return {
+                success: false,
+                error: 'Authentication failed'
+            };
+        }
     } catch (error: any) {
         console.error('Error in verifyLoginCode:', error);
         return {

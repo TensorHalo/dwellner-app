@@ -1,10 +1,13 @@
-// app/index.tsx
+// @/app/camila/home.tsx
 import { View, Text, TouchableOpacity, Animated, Dimensions, StyleSheet } from 'react-native';
 import React, { useState, useRef, useEffect } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Sidebar from '@/components/Sidebar';
 import ChatInterface from '@/components/ChatInterface';
+import { fetchPendingUserData, storeUserData } from '@/utils/dynamodbEmailUtils';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { updateSignInFields, updateEmailCodeLoginFields, updatePasswordResetFields } from '@/utils/dynamodbEmailUtils';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.85;
@@ -16,6 +19,44 @@ const HomeScreen = () => {
     const [isInChat, setIsInChat] = useState(false);
     const sidebarPosition = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
     const mainContentPosition = useRef(new Animated.Value(0)).current;
+    
+    useEffect(() => {
+        const handlePendingUserData = async () => {
+            try {
+                const pendingDataStr = await AsyncStorage.getItem('pendingUserData');
+                if (!pendingDataStr) return;
+        
+                const pendingData = JSON.parse(pendingDataStr) as PendingAuthData;
+                let success = false;
+        
+                switch (pendingData.type) {
+                    case 'SIGNUP':
+                        success = await storeUserData(pendingData.userData);
+                        console.log('New user data stored: ', success);
+                        break;
+                    case 'SIGNIN':
+                        success = await updateSignInFields(pendingData.cognito_id, pendingData.email);
+                        console.log('Sign-in fields updated:', success);
+                        break;
+                    case 'PASSWORD_RESET':
+                        success = await updatePasswordResetFields(pendingData.cognito_id);
+                        console.log('Password reset fields updated:', success);
+                        break;
+                    case 'EMAIL_CODE_LOGIN':
+                        success = await updateEmailCodeLoginFields(pendingData.cognito_id);
+                        console.log('Email code login fields updated:', success);
+                        break;
+                }
+        
+                if (success) {
+                    await AsyncStorage.removeItem('pendingUserData');
+                }
+            } catch (error) {
+                console.error('Error handling pending user data:', error);
+            }
+        };
+        handlePendingUserData();
+    }, []);
 
     const toggleSidebar = () => {
         const sidebarToValue = isSidebarVisible ? -SIDEBAR_WIDTH : 0;

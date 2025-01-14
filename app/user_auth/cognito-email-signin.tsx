@@ -5,6 +5,9 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from '@expo/vector-icons';
 import { signIn } from "@/utils/cognitoConfig";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { PendingAuthData } from "@/types/user";
+import { storeAuthTokens } from "@/utils/authTokens";
 
 interface Params {
     email?: string;
@@ -50,7 +53,17 @@ const CognitoSignIn = () => {
 
         try {
             const result = await signIn(userEmail, password);
-            if (result.success) {
+            if (result.success && result.user?.username) {
+                await storeAuthTokens(result.session);
+
+                const pendingData: PendingAuthData = {
+                    type: 'SIGNIN',
+                    cognito_id: result.user.username,
+                    email: userEmail,
+                    timestamp: new Date().toISOString()
+                };
+    
+                await AsyncStorage.setItem('pendingUserData', JSON.stringify(pendingData));
                 router.replace("/camila/home");
             } else {
                 setError(result.error || "Incorrect password. Please try again.");

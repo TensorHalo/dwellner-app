@@ -9,13 +9,13 @@ import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession
 //     Region: 'ca-central-1'
 // };
 
-const poolConfig = {
+export const poolConfig = {
     UserPoolId: 'us-east-1_wHcEk9kP8',
     ClientId: '25lbf1t46emi9b4g51c6du5kkn',
     Region: 'us-east-1'
 };
 
-const userPool = new CognitoUserPool({
+export const userPool = new CognitoUserPool({
     UserPoolId: poolConfig.UserPoolId,
     ClientId: poolConfig.ClientId
 });
@@ -28,7 +28,7 @@ AWS.config.update({
     })
 });
 
-const cognitoIdentityServiceProvider = new AWS.CognitoIdentityServiceProvider();
+export const cognitoIdentityServiceProvider = new AWS.CognitoIdentityServiceProvider();
 
 interface AuthResponse {
     success?: boolean;
@@ -63,6 +63,23 @@ export const getCurrentSession = async (): Promise<AuthResponse['session'] | nul
             });
         });
     });
+};
+
+export const getCognitoUserId = async (email: string): Promise<string | null> => {
+    try {
+        const params = {
+            UserPoolId: poolConfig.UserPoolId,
+            Username: email.toLowerCase()
+        };
+
+        const response = await cognitoIdentityServiceProvider.adminGetUser(params).promise();
+        // The sub attribute contains the unique identifier (Cognito User ID)
+        const subAttribute = response.UserAttributes.find(attr => attr.Name === 'sub');
+        return subAttribute ? subAttribute.Value : null;
+    } catch (error) {
+        console.error('Error getting Cognito user ID:', error);
+        return null;
+    }
 };
 
 export const checkUserExists = async (email: string): Promise<AuthResponse> => {
@@ -155,6 +172,11 @@ export const completeNewUserSignup = async (email: string, password: string): Pr
             ]
         }).promise();
 
+        const cognitoUserId = await getCognitoUserId(email);
+        if (!cognitoUserId) {
+            throw new Error('Failed to get Cognito user ID');
+        }
+
         const signInResult = await signIn(email, password);
         if (!signInResult.success) {
             throw new Error(signInResult.error || 'Failed to sign in after signup');
@@ -164,7 +186,11 @@ export const completeNewUserSignup = async (email: string, password: string): Pr
             success: true,
             confirmed: true,
             isNewUser: true,
-            session: signInResult.session
+            session: signInResult.session,
+            user: {
+                ...signInResult.user,
+                userId: cognitoUserId
+            }
         };
 
     } catch (error: any) {
@@ -201,10 +227,25 @@ export const signIn = async (email: string, password: string): Promise<AuthRespo
         });
 
         cognitoUser.authenticateUser(authDetails, {
-            onSuccess: (session) => {
+            onSuccess: async (session) => {
+                const attributes = await new Promise((attrResolve) => {
+                    cognitoUser.getUserAttributes((err, result) => {
+                        if (err) {
+                            console.error('Error getting user attributes:', err);
+                            attrResolve(null);
+                            return;
+                        }
+                        attrResolve(result);
+                    });
+                });
+                const sub = attributes?.find(attr => attr.Name === 'sub')?.Value;
+
                 resolve({
                     success: true,
-                    user: cognitoUser,
+                    user: {
+                        ...cognitoUser,
+                        username: sub || cognitoUser.getUsername()
+                    },
                     confirmed: true,
                     session: {
                         accessToken: session.getAccessToken().getJwtToken(),
