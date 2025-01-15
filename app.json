@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "my-app",
-    "slug": "my-app",
+    "name": "Camila",
+    "slug": "Camila",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
-    "scheme": "simplemeditation",
+    "icon": "./assets/dwellnerLogo.png",
+    "scheme": "dwellner",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/dwellnerLogo.png",
@@ -20,7 +20,7 @@
       "config": {
         "googleMapsApiKey": "AIzaSyA1cRST4odpAAs30pWs5414iJebTTynDpo"
       },
-      "bundleIdentifier": "dwellner-app"
+      "bundleIdentifier": "com.dwellner.app"
     },
     "android": {
       "package": "com.dwellner.app",
@@ -46,14 +46,21 @@
       [
         "expo-build-properties",
         {
-            "ios": {
-                "useFrameworks": "static"
-            }
+          "ios": {
+            "useFrameworks": "static"
+          }
         }
       ]
     ],
     "extra": {
-      "useTestVerification": true
-    }
+      "useTestVerification": true,
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "a9715cef-3f90-457f-8ef2-4e165cabc09f"
+      }
+    },
+    "owner": "difanj0713"
   }
 }
