@@ -14,14 +14,14 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
-import { ListingData } from '@/utils/firebase';
+import { ListingData } from '@/types/listingData';
 import SearchFilters from '@/components/SearchFilters';
 import ListingCard, { getFilters } from '@/components/ListingCard';
 import NearbyFacilities from '@/components/NearbyFacilities';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const MAX_VISIBLE_LISTINGS = 8;
-const GOOGLE_MAPS_API_KEY = 'YOUR_API_KEY';
+// const GOOGLE_MAPS_API_KEY = 'YOUR_API_KEY';
 
 const PLACE_ICONS = {
     restaurant: 'restaurant',

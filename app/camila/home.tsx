@@ -5,9 +5,11 @@ import { Stack, useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Sidebar from '@/components/Sidebar';
 import ChatInterface from '@/components/ChatInterface';
-import { fetchPendingUserData, storeUserData } from '@/utils/dynamodbEmailUtils';
+import GetProModal from '@/components/get-pro/GetProModal';
+import { fetchPendingUserData, storeUserData, getUserData } from '@/utils/dynamodbEmailUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { updateSignInFields, updateEmailCodeLoginFields, updatePasswordResetFields } from '@/utils/dynamodbEmailUtils';
+import { PendingAuthData, DynamoDBUserRecord } from '@/types/user';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.85;
@@ -17,15 +19,15 @@ const HomeScreen = () => {
     const router = useRouter();
     const [isSidebarVisible, setSidebarVisible] = useState(false);
     const [isInChat, setIsInChat] = useState(false);
+    const [isProModalVisible, setProModalVisible] = useState(false);
+    const [userData, setUserData] = useState<DynamoDBUserRecord | null>(null);
     const sidebarPosition = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
     const mainContentPosition = useRef(new Animated.Value(0)).current;
     
-    useEffect(() => {
-        const handlePendingUserData = async () => {
-            try {
-                const pendingDataStr = await AsyncStorage.getItem('pendingUserData');
-                if (!pendingDataStr) return;
-        
+    const fetchUserData = async () => {
+        try {
+            const pendingDataStr = await AsyncStorage.getItem('pendingUserData');
+            if (pendingDataStr) {
                 const pendingData = JSON.parse(pendingDataStr) as PendingAuthData;
                 let success = false;
         
@@ -51,16 +53,30 @@ const HomeScreen = () => {
                 if (success) {
                     await AsyncStorage.removeItem('pendingUserData');
                 }
-            } catch (error) {
-                console.error('Error handling pending user data:', error);
+
+                const currentUserData = await getUserData(pendingData.cognito_id);
+                if (currentUserData) {
+                    setUserData(currentUserData);
+                    console.log('User data fetched successfully:', currentUserData);
+                }
             }
-        };
-        handlePendingUserData();
+        } catch (error) {
+            console.error('Error handling user data:', error);
+        }
+    };
+
+    useEffect(() => {
+        fetchUserData();
     }, []);
 
     const toggleSidebar = () => {
         const sidebarToValue = isSidebarVisible ? -SIDEBAR_WIDTH : 0;
         const mainContentToValue = isSidebarVisible ? 0 : (SIDEBAR_WIDTH - MENU_BUTTON_WIDTH);
+
+        // If opening sidebar, fetch latest user data
+        if (!isSidebarVisible) {
+            fetchUserData();
+        }
 
         Animated.parallel([
             Animated.spring(sidebarPosition, {
@@ -85,16 +101,25 @@ const HomeScreen = () => {
         setIsInChat(true);
     };
 
+    const handleOpenProModal = () => {
+        setSidebarVisible(false); // Close sidebar first
+        setTimeout(() => setProModalVisible(true), 300); // Open modal after sidebar closes
+    };
+
     return (
         <GestureHandlerRootView style={styles.container}>
-            {/* Sidebar - Initially hidden off-screen */}
+            {/* Sidebar */}
             <Animated.View style={[
                 styles.sidebar,
                 {
                     transform: [{ translateX: sidebarPosition }],
                 }
             ]}>
-                <Sidebar onClose={toggleSidebar} />
+                <Sidebar 
+                    onClose={toggleSidebar}
+                    userData={userData}
+                    onGetProPress={handleOpenProModal}
+                />
             </Animated.View>
 
             {/* Main Content */}
@@ -120,7 +145,7 @@ const HomeScreen = () => {
                                     <Text className="text-lg font-semibold">Camila</Text>
                                 ) : (
                                     <TouchableOpacity 
-                                        onPress={() => router.push("/camila/get-pro")}
+                                        onPress={() => setProModalVisible(true)}
                                         className="bg-[#54B4AF] px-6 py-1.5 rounded-xl mx-auto"
                                     >
                                         <Text className="text-white font-medium text-base">Get Pro +</Text>
@@ -157,6 +182,12 @@ const HomeScreen = () => {
                     onPress={toggleSidebar}
                 />
             )}
+
+            {/* Pro Modal */}
+            <GetProModal 
+                visible={isProModalVisible}
+                onClose={() => setProModalVisible(false)}
+            />
         </GestureHandlerRootView>
     );
 };

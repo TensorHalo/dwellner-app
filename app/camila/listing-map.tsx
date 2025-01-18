@@ -12,7 +12,7 @@ import { Feather } from '@expo/vector-icons';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
-import { ListingData } from '@/utils/firebase';
+import { ListingData } from '@/types/listingData';
 import ListingCard from '@/components/ListingCard';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;

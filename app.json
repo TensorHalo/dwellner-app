@@ -4,11 +4,11 @@
     "slug": "Camila",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/dwellnerLogo.png",
+    "icon": "./assets/app_logo.png",
     "scheme": "dwellner",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/dwellnerLogo.png",
+      "image": "./assets/app_logo.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },

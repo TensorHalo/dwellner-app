@@ -12,7 +12,8 @@ import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession
 export const poolConfig = {
     UserPoolId: 'us-east-1_wHcEk9kP8',
     ClientId: '25lbf1t46emi9b4g51c6du5kkn',
-    Region: 'us-east-1'
+    Region: 'us-east-1',
+    AuthenticationFlowType: 'CUSTOM_AUTH'
 };
 
 export const userPool = new CognitoUserPool({

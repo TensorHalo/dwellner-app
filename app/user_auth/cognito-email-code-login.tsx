@@ -1,15 +1,12 @@
-// @/app/user_auth/email-code-login.tsx
+// @/app/user_auth/cognito-email-code-login.tsx
 import { View, Text, TouchableOpacity, TextInput, Pressable, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
 import React, { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from '@expo/vector-icons';
-import { sendLoginVerificationCode, verifyLoginCode } from "@/utils/cognitoEmailVerify";
-import { signIn, getCognitoUserId } from "@/utils/cognitoConfig";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { PendingAuthData } from "@/types/user";
+import { sendLoginVerificationCode, verifyLoginCode } from "@/utils/cognitoOTPAuth";
 
-// Re-use the CodeInput component from cognito-email-verify.tsx
+// Re-use the CodeInput component
 const CodeInput = ({ code, setCode, autoFocus, disabled }) => {
     const maxLength = 6;
     const codeArray = code.split('');
@@ -87,6 +84,7 @@ const EmailCodeLogin = () => {
         sendInitialCode();
     }, [email]);
 
+    // Handle keyboard events
     useEffect(() => {
         const keyboardWillShow = Keyboard.addListener(
             Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -103,6 +101,23 @@ const EmailCodeLogin = () => {
             keyboardWillHide.remove();
         };
     }, []);
+
+    // Handle resend countdown
+    useEffect(() => {
+        if (countdown > 0) {
+            const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
+            return () => clearTimeout(timer);
+        } else {
+            setResendDisabled(false);
+        }
+    }, [countdown]);
+
+    // Clear error when code changes
+    useEffect(() => {
+        if (error && code.length > 0) {
+            setError('');
+        }
+    }, [code]);
 
     const handleResend = async () => {
         if (!resendDisabled && !loading) {
@@ -126,40 +141,13 @@ const EmailCodeLogin = () => {
         }
     };
 
-    useEffect(() => {
-        if (countdown > 0) {
-            const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
-            return () => clearTimeout(timer);
-        } else {
-            setResendDisabled(false);
-        }
-    }, [countdown]);
-
-    useEffect(() => {
-        if (error && code.length > 0) {
-            setError('');
-        }
-    }, [code]);
-
     const handleVerification = async () => {
         if (code.length === 6 && !loading) {
             setLoading(true);
             try {
                 const verifyResult = await verifyLoginCode(email as string, code);
                 if (verifyResult.success) {
-                    const cognitoId = await getCognitoUserId(email as string);
-                    if (cognitoId) {
-                        const pendingData: PendingAuthData = {
-                            type: 'EMAIL_CODE_LOGIN',
-                            cognito_id: cognitoId,
-                            email: email as string,
-                            timestamp: new Date().toISOString()
-                        };
-                        await AsyncStorage.setItem('pendingUserData', JSON.stringify(pendingData));
-                        router.replace("/camila/home");
-                    } else {
-                        throw new Error('Failed to get user ID');
-                    }
+                    router.replace("/camila/home");
                 } else {
                     setError(verifyResult.error || 'Invalid code. Please try again.');
                     setCode('');

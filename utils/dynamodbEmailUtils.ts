@@ -36,6 +36,14 @@ const formatBirthDate = (date: Date | string): string => {
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
 
+const parseDateString = (dateStr: string): Date => {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+        const [year, month, day] = dateStr.split('-').map(Number);
+        return new Date(year, month - 1, day);
+    }
+    return new Date(dateStr);
+};
+
 const formatTimestamp = (date: Date | string): string => {
     const d = ensureDate(date);
     return d.toISOString();

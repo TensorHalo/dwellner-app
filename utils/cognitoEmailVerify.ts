@@ -1,4 +1,4 @@
-// @/utils/cognitoVerify.ts
+// @/utils/cognitoEmailVerify.ts
 import { CognitoUserPool, CognitoUser, CognitoUserAttribute, AuthenticationDetails } from 'amazon-cognito-identity-js';
 import AWS from 'aws-sdk';
 import { userPool, poolConfig, cognitoIdentityServiceProvider } from './cognitoConfig';
@@ -12,6 +12,16 @@ interface VerifyResponse {
     error?: string;
     isNewUser?: boolean;
     codeDelivered?: boolean;
+    session?: {
+        accessToken: string;
+        idToken: string;
+        refreshToken: string;
+    };
+}
+
+interface AuthResponse {
+    success: boolean;
+    error?: string;
     session?: {
         accessToken: string;
         idToken: string;
@@ -192,7 +202,6 @@ export const verifyEmailCode = async (email: string, code: string): Promise<Veri
                 return;
             }
 
-            // If we get here without the expected error, something went wrong
             resolve({
                 success: false,
                 error: 'Unexpected verification state'
@@ -205,63 +214,59 @@ export const resendEmailCode = async (email: string): Promise<VerifyResponse> =>
     return sendEmailVerificationCode(email);
 };
 
-export const sendLoginVerificationCode = async (email: string): Promise<VerifyResponse> => {
-    console.log('Sending login verification code to:', email);
+export const sendLoginVerificationCode = async (email: string): Promise<AuthResponse> => {
+    console.log('Starting email OTP flow for:', email);
     
     try {
-        // Check if user exists and is in correct state
-        const userInfo = await cognitoIdentityServiceProvider.adminGetUser({
-            UserPoolId: poolConfig.UserPoolId,
-            Username: email.toLowerCase()
-        }).promise();
-
-        const emailVerified = userInfo.UserAttributes.find(
-            attr => attr.Name === 'email_verified'
-        )?.Value === 'true';
-        const isConfirmed = userInfo.UserStatus === 'CONFIRMED';
-
-        if (!emailVerified || !isConfirmed) {
-            return {
-                success: false,
-                error: 'Account not fully verified. Please complete registration first.'
-            };
-        }
-
-        const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-        await cognitoIdentityServiceProvider.adminUpdateUserAttributes({
-            UserPoolId: poolConfig.UserPoolId,
-            Username: email.toLowerCase(),
-            UserAttributes: [
-                {
-                    Name: 'custom:login_code',
-                    Value: otp
-                }
-            ]
-        }).promise();
-
-        await cognitoIdentityServiceProvider.adminInitiateAuth({
-            AuthFlow: 'CUSTOM_AUTH',
+        // First initiate the USER_AUTH flow
+        const authResult = await cognitoIdentityServiceProvider.initiateAuth({
+            AuthFlow: 'USER_AUTH',
             ClientId: poolConfig.ClientId,
-            UserPoolId: poolConfig.UserPoolId,
             AuthParameters: {
-                USERNAME: email.toLowerCase()
+                USERNAME: email.toLowerCase(),
+                PREFERRED_CHALLENGE: 'EMAIL_OTP'
             }
         }).promise();
 
-        return {
-            success: true,
-            codeDelivered: true
-        };
+        if (!authResult.Session) {
+            throw new Error('No session returned from auth initiation');
+        }
 
+        // Select EMAIL_OTP challenge
+        const selectResult = await cognitoIdentityServiceProvider.respondToAuthChallenge({
+            ClientId: poolConfig.ClientId,
+            ChallengeName: 'SELECT_CHALLENGE',
+            Session: authResult.Session,
+            ChallengeResponses: {
+                USERNAME: email.toLowerCase(),
+                ANSWER: 'EMAIL_OTP'
+            }
+        }).promise();
+
+        if (selectResult.ChallengeName === 'EMAIL_OTP') {
+            return {
+                success: true
+            };
+        }
+
+        throw new Error('Unexpected challenge response');
     } catch (error: any) {
         console.error('Error in sendLoginVerificationCode:', error);
+        
         if (error.code === 'UserNotFoundException') {
             return {
                 success: false,
                 error: 'No account found with this email'
             };
         }
+
+        if (error.code === 'NotAuthorizedException') {
+            return {
+                success: false,
+                error: 'Account not verified or invalid authentication state'
+            };
+        }
+        
         return {
             success: false,
             error: error.message || 'Failed to send verification code'
@@ -269,82 +274,85 @@ export const sendLoginVerificationCode = async (email: string): Promise<VerifyRe
     }
 };
 
-export const verifyLoginCode = async (email: string, code: string): Promise<VerifyResponse> => {
-    console.log('Verifying login code for:', email);
+export const verifyLoginCode = async (email: string, code: string): Promise<AuthResponse> => {
+    console.log('Verifying email OTP for:', email);
     
     try {
-        const userInfo = await cognitoIdentityServiceProvider.adminGetUser({
-            UserPoolId: poolConfig.UserPoolId,
-            Username: email.toLowerCase()
+        // Reinitiate auth to get a fresh session
+        const authResult = await cognitoIdentityServiceProvider.initiateAuth({
+            AuthFlow: 'USER_AUTH',
+            ClientId: poolConfig.ClientId,
+            AuthParameters: {
+                USERNAME: email.toLowerCase(),
+                PREFERRED_CHALLENGE: 'EMAIL_OTP'
+            }
         }).promise();
 
-        const storedCode = userInfo.UserAttributes.find(
-            attr => attr.Name === 'custom:login_code'
-        )?.Value;
+        if (!authResult.Session) {
+            throw new Error('No session returned from auth initiation');
+        }
 
-        if (!storedCode || code !== storedCode) {
+        // Verify the OTP code
+        const challengeResult = await cognitoIdentityServiceProvider.respondToAuthChallenge({
+            ClientId: poolConfig.ClientId,
+            ChallengeName: 'EMAIL_OTP',
+            Session: authResult.Session,
+            ChallengeResponses: {
+                USERNAME: email.toLowerCase(),
+                EMAIL_OTP_CODE: code
+            }
+        }).promise();
+
+        if (challengeResult.AuthenticationResult) {
+            const tokens = {
+                accessToken: challengeResult.AuthenticationResult.AccessToken,
+                idToken: challengeResult.AuthenticationResult.IdToken,
+                refreshToken: challengeResult.AuthenticationResult.RefreshToken
+            };
+
+            await storeAuthTokens(tokens);
+
+            // Store pending auth data
+            const cognitoUser = new CognitoUser({
+                Username: email.toLowerCase(),
+                Pool: userPool
+            });
+
+            const pendingData: PendingAuthData = {
+                type: 'EMAIL_CODE_LOGIN',
+                cognito_id: cognitoUser.getUsername(),
+                email: email.toLowerCase(),
+                timestamp: new Date().toISOString()
+            };
+            await AsyncStorage.setItem('pendingUserData', JSON.stringify(pendingData));
+
+            return {
+                success: true,
+                session: tokens
+            };
+        }
+
+        return {
+            success: false,
+            error: 'Invalid verification code'
+        };
+    } catch (error: any) {
+        console.error('Error in verifyLoginCode:', error);
+        
+        if (error.code === 'CodeMismatchException') {
             return {
                 success: false,
                 error: 'Invalid verification code'
             };
         }
 
-        // Initiate custom auth with OTP
-        const authResult = await cognitoIdentityServiceProvider.adminRespondToAuthChallenge({
-            ChallengeName: 'CUSTOM_CHALLENGE',
-            ClientId: poolConfig.ClientId,
-            UserPoolId: poolConfig.UserPoolId,
-            ChallengeResponses: {
-                USERNAME: email.toLowerCase(),
-                ANSWER: code
-            }
-        }).promise();
-
-        if (authResult.AuthenticationResult) {
-            // Store tokens
-            const tokens = {
-                accessToken: authResult.AuthenticationResult.AccessToken,
-                idToken: authResult.AuthenticationResult.IdToken,
-                refreshToken: authResult.AuthenticationResult.RefreshToken
-            };
-            await storeAuthTokens(tokens);
-
-            // Clear the OTP
-            await cognitoIdentityServiceProvider.adminUpdateUserAttributes({
-                UserPoolId: poolConfig.UserPoolId,
-                Username: email.toLowerCase(),
-                UserAttributes: [
-                    {
-                        Name: 'custom:login_code',
-                        Value: ''
-                    }
-                ]
-            }).promise();
-
-            // Store pending data for DynamoDB update
-            const cognitoId = await getCognitoUserId(email);
-            if (cognitoId) {
-                const pendingData: PendingAuthData = {
-                    type: 'EMAIL_CODE_LOGIN',
-                    cognito_id: cognitoId,
-                    email: email,
-                    timestamp: new Date().toISOString()
-                };
-                await AsyncStorage.setItem('pendingUserData', JSON.stringify(pendingData));
-            }
-
-            return {
-                success: true,
-                session: tokens
-            };
-        } else {
+        if (error.code === 'ExpiredCodeException') {
             return {
                 success: false,
-                error: 'Authentication failed'
+                error: 'Verification code has expired'
             };
         }
-    } catch (error: any) {
-        console.error('Error in verifyLoginCode:', error);
+        
         return {
             success: false,
             error: error.message || 'Failed to verify code'
