@@ -5,6 +5,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useRouter } from "expo-router";
 import { MaterialIcons } from '@expo/vector-icons';
 import { checkUserExists } from "@/utils/cognitoConfig";
+import { getLastUsedEmail } from "@/utils/authPersistence";
 
 const CognitoEmailAuth = () => {
     const router = useRouter();
@@ -12,6 +13,34 @@ const CognitoEmailAuth = () => {
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [keyboardVisible, setKeyboardVisible] = useState(false);
+
+    useEffect(() => {
+        loadLastUsedEmail();
+
+        const showSubscription = Keyboard.addListener('keyboardDidShow', () => {
+            setKeyboardVisible(true);
+        });
+        const hideSubscription = Keyboard.addListener('keyboardDidHide', () => {
+            setKeyboardVisible(false);
+        });
+
+        return () => {
+            showSubscription.remove();
+            hideSubscription.remove();
+        };
+    }, []);
+
+    const loadLastUsedEmail = async () => {
+        try {
+            const savedEmail = await getLastUsedEmail();
+            if (savedEmail) {
+                setEmail(savedEmail);
+                console.log('Loaded saved email:', savedEmail);
+            }
+        } catch (error) {
+            console.error('Error loading saved email:', error);
+        }
+    };
 
     useEffect(() => {
         const keyboardWillShow = Keyboard.addListener(

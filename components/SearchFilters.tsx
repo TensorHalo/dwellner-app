@@ -1,20 +1,16 @@
-// components/SearchFilters.tsx
 import React, { useRef } from 'react';
 import { View, Text, TouchableOpacity, Modal, Animated, PanResponder, Dimensions } from 'react-native';
-
-interface FilterTag {
-    text: string;
-}
+import { ModelPreference } from '@/types/chatInterface';
 
 interface SearchFiltersProps {
     visible: boolean;
     onDismiss: () => void;
-    filters: FilterTag[];
+    modelPreference: ModelPreference | null;
 }
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
-const SearchFilters: React.FC<SearchFiltersProps> = ({ visible, onDismiss, filters }) => {
+const SearchFilters: React.FC<SearchFiltersProps> = ({ visible, onDismiss, modelPreference }) => {
     const panY = useRef(new Animated.Value(0)).current;
     const translateY = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
 
@@ -60,6 +56,28 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({ visible, onDismiss, filte
         closeAnim.start(() => onDismiss());
     };
 
+    const renderFilterTags = () => {
+        if (!modelPreference) return null;
+
+        const tags = [
+            modelPreference.rent_or_purchase === 'rent' ? 'For Rent' : 'For Sale',
+            `${modelPreference.bedrooms} Bed${modelPreference.bedrooms > 1 ? 's' : ''}`,
+            `${modelPreference.bathrooms} Bath${modelPreference.bathrooms > 1 ? 's' : ''}`,
+            modelPreference.property_type,
+            modelPreference.location,
+            modelPreference.budget_max ? `Up to $${modelPreference.budget_max.toLocaleString()}` : ''
+        ].filter(Boolean);
+
+        return tags.map((tag, index) => (
+            <View 
+                key={index} 
+                className="bg-gray-50 rounded-full px-3 py-1 mr-2 mb-2"
+            >
+                <Text className="text-sm">{tag}</Text>
+            </View>
+        ));
+    };
+
     const overlayStyle = {
         backgroundColor: '#000',
         opacity: translateY.interpolate({
@@ -96,25 +114,17 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({ visible, onDismiss, filte
                             className="bg-white rounded-t-[40px] p-8 pb-12 relative"
                             style={{ marginTop: 'auto' }}
                         >
-                            {/* Centered drag indicator */}
                             <View {...panResponder.panHandlers} className="absolute left-0 right-0 items-center top-3">
                                 <View className="w-12 h-1.5 rounded-full bg-gray-300" />
                             </View>
 
                             <TouchableOpacity activeOpacity={1}>
                                 <Text className="text-xl font-semibold text-center mt-4 mb-6">
-                                    The filters have been applied
+                                    Current Search Preferences
                                 </Text>
 
-                                <View className="flex-row flex-wrap gap-2 mb-8">
-                                    {filters.map((filter, index) => (
-                                        <View 
-                                            key={index} 
-                                            className="bg-gray-50 rounded-full px-3 py-1"
-                                        >
-                                            <Text className="text-sm">{filter.text}</Text>
-                                        </View>
-                                    ))}
+                                <View className="flex-row flex-wrap mb-8">
+                                    {renderFilterTags()}
                                 </View>
 
                                 <View className="items-center">

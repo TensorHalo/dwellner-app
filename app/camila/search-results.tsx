@@ -8,20 +8,22 @@ import {
     Animated,
     StyleSheet,
     BackHandler,
-    Platform
 } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ListingData } from '@/types/listingData';
+import { ModelPreference } from '@/types/chatInterface';
 import SearchFilters from '@/components/SearchFilters';
-import ListingCard, { getFilters } from '@/components/ListingCard';
+import ListingCard from '@/components/ListingCard';
 import NearbyFacilities from '@/components/NearbyFacilities';
+import ListingsCache from '@/components/listings/ListingsCache';
+import { ListingsApi } from '@/components/listings/ListingsApi';
+import { getAuthTokens } from '@/utils/authTokens';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const MAX_VISIBLE_LISTINGS = 8;
-// const GOOGLE_MAPS_API_KEY = 'YOUR_API_KEY';
 
 const PLACE_ICONS = {
     restaurant: 'restaurant',
@@ -46,17 +48,39 @@ const SearchResults = () => {
     const [activeTab, setActiveTab] = useState('Restaurant');
     const [showFilters, setShowFilters] = useState(false);
     const [showMap, setShowMap] = useState(false);
-    const [mapReady, setMapReady] = useState(false);
-    const [currentRegion, setCurrentRegion] = useState<Region | null>(null);
     const [facilities, setFacilities] = useState<any[]>([]);
-    const slideAnim = useRef(new Animated.Value(0)).current;
-    const mapRef = useRef<MapView>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [modelPreference, setModelPreference] = useState<ModelPreference | null>(null);
     const [showListingCard, setShowListingCard] = useState(false);
+
+    // Animation refs
+    const slideAnim = useRef(new Animated.Value(0)).current;
     const cardSlideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+    const mapRef = useRef<MapView>(null);
+
+    // Service refs
+    const listingsApiRef = useRef<ListingsApi | null>(null);
+    const cache = ListingsCache.getInstance();
 
     const currentListing = listings[currentIndex];
     const visibleListingsCount = Math.min(MAX_VISIBLE_LISTINGS, listings.length);
 
+    // Initialize API and setup cleanup
+    useEffect(() => {
+        const initApi = async () => {
+            const tokens = await getAuthTokens();
+            if (tokens?.accessToken) {
+                listingsApiRef.current = new ListingsApi(tokens.accessToken);
+            }
+        };
+        initApi();
+
+        return () => {
+            cache.clearCache();
+        };
+    }, []);
+
+    // Handle back button
     useEffect(() => {
         const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
             if (showListingCard) {
@@ -73,98 +97,93 @@ const SearchResults = () => {
         return () => backHandler.remove();
     }, [showMap, showListingCard]);
 
+    // Initialize listings from data
     useEffect(() => {
-        if (!listingsData) {
-            console.log('No listings data provided');
-            return;
-        }
-    
+        if (!listingsData) return;
+
         try {
             const decodedData = decodeURIComponent(listingsData as string);
-            const parsedListings = JSON.parse(decodedData);
-            
-            if (!Array.isArray(parsedListings)) {
-                throw new Error('Parsed listings is not an array');
+            const { listings: initialListings, modelPreference: pref, listingIds } = JSON.parse(decodedData);
+
+            setModelPreference(pref);
+
+            if (initialListings?.[0]) {
+                // Store first listing in cache and display
+                cache.initializeWithFirstListing(initialListings[0], listingIds, pref);
+                setListings([initialListings[0]]);
+                
+                // Start prefetching next listing
+                prefetchNextListing();
             }
-    
-            const validatedListings = parsedListings.map(listing => ({
-                listing_id: listing.listing_id || '',
-                address: listing.address || '',
-                city: listing.City || '',
-                architectural_style: Array.isArray(listing.architectural_style) ? listing.architectural_style : [],
-                bathrooms_partial: listing.bathrooms_partial || null,
-                bathrooms_total: listing.bathrooms_total || 0,
-                bedrooms_total: listing.bedrooms_total || 0,
-                common_interest: listing.common_interest || '',
-                country: listing.country || '',
-                coordinates: {
-                    latitude: listing.coordinates?.latitude || 0,
-                    longitude: listing.coordinates?.longitude || 0
-                },
-                list_price: listing.list_price || 0,
-                parking_features: Array.isArray(listing.parking_features) ? listing.parking_features : [],
-                property_type: listing.property_type || 'Unknown',
-                photos_count: listing.photos_count || 0,
-                media: Array.isArray(listing.media) ? listing.media : []
-            }));
-    
-            setListings(validatedListings);
         } catch (error) {
-            console.error('Error parsing listings:', error);
-            setListings([]);
+            console.error('Error initializing listings:', error);
         }
     }, [listingsData]);
 
-    const fetchNearbyFacilities = async () => {
-        if (!listings[currentIndex]) return;
-        const currentListing = listings[currentIndex];
-        const facilityTypes = ['restaurant', 'bar', 'store', 'police'];
-        const allFacilities: any[] = [];
+    const fetchListingDetail = async (listingId: string) => {
+        if (!listingsApiRef.current || !modelPreference) return null;
+        try {
+            const listingData = await listingsApiRef.current.fetchListingDetail(
+                listingId,
+                modelPreference
+            );
+            cache.cacheListing(listingData);
+            return listingData;
+        } catch (error) {
+            console.error('Error fetching listing detail:', error);
+            return null;
+        }
+    };
 
-        for (const type of facilityTypes) {
-            const radius = type === 'police' ? 5000 : 1000;
-            const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${currentListing.coordinates.latitude},${currentListing.coordinates.longitude}&radius=${radius}&type=${type}&key=${GOOGLE_MAPS_API_KEY}`;
+    const prefetchNextListing = async () => {
+        const nextListingId = cache.getNextUncachedListingId(currentIndex);
+        if (nextListingId && !isLoading) {
+            setIsLoading(true);
+            await fetchListingDetail(nextListingId);
+            setIsLoading(false);
+        }
+    };
 
-            try {
-                const response = await fetch(url);
-                const data = await response.json();
+    // Prefetch next listing when current index changes
+    useEffect(() => {
+        prefetchNextListing();
+    }, [currentIndex]);
 
-                if (data.status === 'OK' && data.results) {
-                    const typedFacilities = data.results.slice(0, 4).map((place: any) => ({
-                        name: place.name,
-                        rating: place.rating || null,
-                        distance: 0,
-                        coordinates: {
-                            latitude: place.geometry.location.lat,
-                            longitude: place.geometry.location.lng
-                        },
-                        type: type
-                    }));
+    const handleNextListing = async () => {
+        if (currentIndex === MAX_VISIBLE_LISTINGS - 1) {
+            navigateToViewMore();
+            return;
+        }
 
-                    allFacilities.push(...typedFacilities);
-                }
-            } catch (error) {
-                console.error(`Error fetching ${type} facilities:`, error);
+        const nextListingId = cache.getListingIds()[currentIndex + 1];
+        if (!nextListingId) return;
+
+        const nextListing = cache.getListing(nextListingId);
+        if (nextListing) {
+            setListings(prev => [...prev, nextListing]);
+            setCurrentIndex(prev => prev + 1);
+            setCurrentMediaIndex(0);
+        } else {
+            setIsLoading(true);
+            const fetchedListing = await fetchListingDetail(nextListingId);
+            setIsLoading(false);
+
+            if (fetchedListing) {
+                setListings(prev => [...prev, fetchedListing]);
+                setCurrentIndex(prev => prev + 1);
+                setCurrentMediaIndex(0);
             }
         }
-
-        setFacilities(allFacilities);
     };
 
-    const handleMarkerPress = () => {
-        if (!showMap) return;
-        setShowListingCard(true);
-        if (mapRef.current && currentListing) {
-            mapRef.current.animateToRegion({
-                latitude: currentListing.coordinates.latitude,
-                longitude: currentListing.coordinates.longitude,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01
-            }, 500);
+    const handlePreviousListing = () => {
+        if (currentIndex > 0) {
+            setCurrentIndex(prev => prev - 1);
+            setCurrentMediaIndex(0);
         }
-        showListingDetails();
     };
 
+    // Keep your existing UI-related functions
     const toggleMap = () => {
         if (showMap) {
             Animated.spring(slideAnim, {
@@ -185,56 +204,6 @@ const SearchResults = () => {
         }
     };
 
-    const handleNextListing = () => {
-        if (currentIndex === MAX_VISIBLE_LISTINGS - 1 || currentIndex === listings.length - 1) {
-            navigateToViewMore();
-        } else {
-            setCurrentIndex(prev => prev + 1);
-            setCurrentMediaIndex(0);
-        }
-    };
-
-    const handlePreviousListing = () => {
-        if (currentIndex > 0) {
-            setCurrentIndex(prev => prev - 1);
-            setCurrentMediaIndex(0);
-        }
-    };
-
-    const navigateToViewMore = () => {
-        router.push({
-            pathname: '/camila/view-more',
-            params: { listingsData: encodeURIComponent(JSON.stringify(listings)) },
-        });
-    };
-
-    // Handle back button press
-    const handleBackPress = () => {
-        if (showMap) {
-            toggleMap();
-            return;
-        }
-        router.back();
-    };
-
-    useEffect(() => {
-        if (showMap && currentListing) {
-            const loadFacilities = async () => {
-                await fetchNearbyFacilities();
-                if (mapRef.current) {
-                    const { coordinates } = currentListing;
-                    mapRef.current.animateToRegion({
-                        latitude: coordinates.latitude,
-                        longitude: coordinates.longitude,
-                        latitudeDelta: 0.01,
-                        longitudeDelta: 0.01
-                    }, 500);
-                }
-            };
-            loadFacilities();
-        }
-    }, [showMap, currentListing]);
-    
     const showListingDetails = () => {
         setShowListingCard(true);
         Animated.spring(cardSlideAnim, {
@@ -244,7 +213,7 @@ const SearchResults = () => {
             stiffness: 100
         }).start();
     };
-    
+
     const hideListingCard = () => {
         Animated.spring(cardSlideAnim, {
             toValue: SCREEN_HEIGHT,
@@ -256,7 +225,28 @@ const SearchResults = () => {
         });
     };
 
-    if (!listings.length) {
+    const handleBackPress = () => {
+        if (showMap) {
+            toggleMap();
+            return;
+        }
+        router.back();
+    };
+
+    const navigateToViewMore = () => {
+        const allListings = cache.getAllCachedListings();
+        router.push({
+            pathname: '/camila/view-more',
+            params: { 
+                listingsData: encodeURIComponent(JSON.stringify({
+                    listings: allListings,
+                    modelPreference
+                }))
+            }
+        });
+    };
+
+    if (!listings.length || !currentListing) {
         return (
             <View className="flex-1 bg-gray-100 items-center justify-center">
                 <Text>Loading listings...</Text>
@@ -279,7 +269,7 @@ const SearchResults = () => {
                 }}
             />
 
-            {/* Map View (positioned behind the content) */}
+            {/* Map View (positioned behind the content)
             <View style={StyleSheet.absoluteFill}>
                 <MapView
                     ref={mapRef}
@@ -325,7 +315,7 @@ const SearchResults = () => {
                         </>
                     )}
                 </MapView>
-            </View>
+            </View> */}
 
             {showListingCard && showMap && (
                 <Animated.View
@@ -464,7 +454,7 @@ const SearchResults = () => {
                 <SearchFilters 
                     visible={showFilters}
                     onDismiss={() => setShowFilters(false)}
-                    filters={getFilters()}
+                    modelPreference={modelPreference}
                 />
             </Animated.View>
         </View>

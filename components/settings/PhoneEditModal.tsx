@@ -1,4 +1,3 @@
-// @/components/settings/PhoneEditModal.tsx
 import React, { useState, useRef, useEffect } from 'react';
 import { 
     View, 
@@ -6,7 +5,6 @@ import {
     TouchableOpacity, 
     StyleSheet, 
     Modal, 
-    Dimensions,
     TextInput,
     Pressable,
     Animated,
@@ -18,9 +16,9 @@ import CountryPicker, {
     CountryCode 
 } from "react-native-country-picker-modal";
 import { formatPhoneNumber, isValidPhoneNumber } from "@/utils/phoneFormatters";
+import { Dimensions } from 'react-native';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const MODAL_TOP_MARGIN = 80;
 
 interface PhoneEditModalProps {
     visible: boolean;
@@ -32,7 +30,7 @@ interface PhoneEditModalProps {
 const PhoneEditModal = ({ visible, onClose, onSave, currentValue }: PhoneEditModalProps) => {
     const [countryCode, setCountryCode] = useState<CountryCode>("CA");
     const [callingCode, setCallingCode] = useState("1");
-    const [phoneNumber, setPhoneNumber] = useState(currentValue || "");
+    const [phoneNumber, setPhoneNumber] = useState("");
     const [showCountryPicker, setShowCountryPicker] = useState(false);
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
@@ -50,6 +48,15 @@ const PhoneEditModal = ({ visible, onClose, onSave, currentValue }: PhoneEditMod
             }).start();
         }
     }, [visible]);
+
+    // Parse current value on mount
+    useEffect(() => {
+        if (currentValue) {
+            // Remove the + and country code to get the local number
+            const localNumber = currentValue.replace(`+${callingCode}`, '');
+            setPhoneNumber(formatPhoneNumber(localNumber, countryCode));
+        }
+    }, [currentValue, callingCode]);
 
     const handlePhoneChange = (text: string) => {
         const numericOnly = text.replace(/\D/g, '');
@@ -81,10 +88,12 @@ const PhoneEditModal = ({ visible, onClose, onSave, currentValue }: PhoneEditMod
         setLoading(true);
         try {
             const formattedNumber = `+${callingCode}${numericPhone}`;
+            console.log('Saving phone number:', formattedNumber);
             await onSave(formattedNumber);
             onClose();
         } catch (error) {
-            setError("Failed to save phone number");
+            console.error('Error saving phone number:', error);
+            setError("Failed to save phone number. Please try again.");
         } finally {
             setLoading(false);
         }

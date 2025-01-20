@@ -1,14 +1,8 @@
-// @/utils/dynamodbUserInfoUtils.ts
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { 
     DynamoDBDocumentClient, 
-    PutCommand, 
-    GetCommand, 
-    UpdateCommand,
-    QueryCommand
+    UpdateCommand
 } from "@aws-sdk/lib-dynamodb";
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DynamoDBUserRecord, EmailAuthMetadata, UserInfoFormData } from '@/types/user';
 
 const TABLE_NAME = "dwellner_users";
 
@@ -51,7 +45,8 @@ export const updateUserField = async (
                 expressionAttributeValues[':value'] = value;
                 break;
             case 'phone_number':
-                updateExpression += 'auth_methods.phone = :phoneData';
+                updateExpression += 'auth_methods.#phone = :phoneData';
+                expressionAttributeNames['#phone'] = 'phone';
                 expressionAttributeValues[':phoneData'] = {
                     phone_number: value,
                     phone_verified: false,
@@ -61,6 +56,10 @@ export const updateUserField = async (
             default:
                 throw new Error(`Unsupported field for update: ${field}`);
         }
+
+        console.log('Updating DynamoDB with expression:', updateExpression);
+        console.log('Attribute names:', expressionAttributeNames);
+        console.log('Attribute values:', expressionAttributeValues);
 
         const command = new UpdateCommand({
             TableName: TABLE_NAME,
@@ -74,7 +73,8 @@ export const updateUserField = async (
             ReturnValues: 'ALL_NEW'
         });
 
-        await docClient.send(command);
+        const response = await docClient.send(command);
+        console.log('DynamoDB update response:', response);
         return true;
     } catch (error) {
         console.error('Error updating user field:', error);

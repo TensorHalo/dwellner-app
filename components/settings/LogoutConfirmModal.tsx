@@ -1,14 +1,26 @@
-// @/components/settings/LogoutConfirmModal.tsx
-import React from 'react';
-import { View, Text, TouchableOpacity, Modal, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, TouchableOpacity, Modal, StyleSheet, ActivityIndicator } from 'react-native';
 
 interface LogoutConfirmModalProps {
     visible: boolean;
     onClose: () => void;
-    onConfirm: () => void;
+    onConfirm: () => Promise<void>;
 }
 
 const LogoutConfirmModal = ({ visible, onClose, onConfirm }: LogoutConfirmModalProps) => {
+    const [isLoggingOut, setIsLoggingOut] = useState(false);
+
+    const handleLogout = async () => {
+        try {
+            setIsLoggingOut(true);
+            await onConfirm();
+        } catch (error) {
+            console.error('Error during logout:', error);
+        } finally {
+            setIsLoggingOut(false);
+        }
+    };
+
     return (
         <Modal
             visible={visible}
@@ -26,15 +38,21 @@ const LogoutConfirmModal = ({ visible, onClose, onConfirm }: LogoutConfirmModalP
                         <TouchableOpacity 
                             style={[styles.button, styles.cancelButton]}
                             onPress={onClose}
+                            disabled={isLoggingOut}
                         >
                             <Text style={styles.cancelButtonText}>Cancel</Text>
                         </TouchableOpacity>
                         
                         <TouchableOpacity 
                             style={[styles.button, styles.logoutButton]}
-                            onPress={onConfirm}
+                            onPress={handleLogout}
+                            disabled={isLoggingOut}
                         >
-                            <Text style={styles.logoutButtonText}>Log out</Text>
+                            {isLoggingOut ? (
+                                <ActivityIndicator color="white" />
+                            ) : (
+                                <Text style={styles.logoutButtonText}>Log out</Text>
+                            )}
                         </TouchableOpacity>
                     </View>
                 </View>

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import ListingCard from './ListingCard';
-import { ListingData } from '@/utils/firebase';
+import { ListingData } from '@/types/listingData';
 
 interface ListingsMessageProps {
     listings: ListingData[];

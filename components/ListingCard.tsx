@@ -10,7 +10,7 @@ import {
     Linking 
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { ListingData } from '@/utils/firebase';
+import { ListingData } from '@/types/listingData';
 import { useRouter } from 'expo-router';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;

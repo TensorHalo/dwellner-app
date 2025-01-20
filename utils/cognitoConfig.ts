@@ -1,6 +1,7 @@
 // @/utils/cognitoConfig.ts
 import 'react-native-get-random-values';
 import AWS from 'aws-sdk';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession } from 'amazon-cognito-identity-js';
 
 // const poolConfig = {
@@ -293,9 +294,24 @@ export const signIn = async (email: string, password: string): Promise<AuthRespo
 };
 
 export const signOut = async (): Promise<void> => {
-    const currentUser = userPool.getCurrentUser();
-    if (currentUser) {
-        console.log('Signing out user');
-        currentUser.signOut();
+    try {
+        console.log('Starting sign out process');
+        
+        const currentUser = userPool.getCurrentUser();
+        if (currentUser) {
+            currentUser.signOut();
+            console.log('User signed out from Cognito');
+        }
+
+        await AsyncStorage.multiRemove([
+            'auth_tokens',
+            'pendingUserData',
+            'userSession'
+        ]);
+        console.log('Local storage cleared');
+
+    } catch (error) {
+        console.error('Error during sign out:', error);
+        throw error;
     }
 };

@@ -1,15 +1,39 @@
-// components/ListingsButton.tsx
+// @/components/ListingsButton.tsx
 import React from 'react';
 import { TouchableOpacity, Text, View, Image } from 'react-native';
+import { ListingData } from '@/types/listingData';
+import { ModelPreference } from '@/types/chatInterface';
+import ListingsCache from './listings/ListingsCache';
 
 interface ListingsButtonProps {
+    listings: ListingData[];
+    modelPreference: ModelPreference;
+    listingIds: string[];
     onPress: () => void;
 }
 
-const ListingsButton: React.FC<ListingsButtonProps> = ({ onPress }) => {
+const ListingsButton: React.FC<ListingsButtonProps> = ({ 
+    listings, 
+    modelPreference, 
+    listingIds, 
+    onPress 
+}) => {
+    const handlePress = () => {
+        // Initialize the cache with the first listing
+        if (listings.length > 0) {
+            const cache = ListingsCache.getInstance();
+            cache.initializeWithFirstListing(
+                listings[0],
+                listingIds,
+                modelPreference
+            );
+        }
+        onPress();
+    };
+
     return (
         <TouchableOpacity 
-            onPress={onPress}
+            onPress={handlePress}
             className="w-[85%] ml-10"
         >
             <View className="flex-row bg-[#8CD0CB] rounded-2xl overflow-hidden border-2 border-[#8CD0CB]">

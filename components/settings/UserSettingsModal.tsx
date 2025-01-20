@@ -9,6 +9,8 @@ import PersonalInfoModal from './PersonalInfoModal';
 import LogoutConfirmModal from './LogoutConfirmModal';
 import ProfileModal from './ProfileModal';
 import { signOut } from '@/utils/cognitoConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Alert } from 'react-native';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const MODAL_TOP_MARGIN = 80;
@@ -90,10 +92,24 @@ const UserSettingsModal = ({ visible, onClose, userData, onUpdateUserData }: {
 
     const handleLogout = async () => {
         try {
+            setShowLogoutConfirm(false);
+            setShowPersonalInfo(false);
+            setShowProfile(false);
+
+            await AsyncStorage.multiRemove([
+                'auth_tokens',
+                'pendingUserData',
+                'userSession'
+            ]);
+
             await signOut();
+            
+            onClose();
+    
             router.replace('/');
         } catch (error) {
-            console.error('Error signing out:', error);
+            console.error('Error during logout:', error);
+            Alert.alert('Error', 'Failed to log out. Please try again.');
         }
     };
 

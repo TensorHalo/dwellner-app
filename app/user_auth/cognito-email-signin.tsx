@@ -8,6 +8,7 @@ import { signIn } from "@/utils/cognitoConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { PendingAuthData } from "@/types/user";
 import { storeAuthTokens } from "@/utils/authTokens";
+import { getStoredCredentials, saveAuthCredentials } from "@/utils/authPersistence";
 
 interface Params {
     email?: string;
@@ -24,6 +25,22 @@ const CognitoSignIn = () => {
 
     // Get email from params safely
     const userEmail = params.email || '';
+
+    useEffect(() => {
+        loadStoredCredentials();
+    }, []);
+
+    const loadStoredCredentials = async () => {
+        try {
+            const credentials = await getStoredCredentials();
+            if (credentials && credentials.email === userEmail) {
+                setPassword(credentials.password);
+                console.log('Loaded stored credentials for:', userEmail);
+            }
+        } catch (error) {
+            console.error('Error loading credentials:', error);
+        }
+    };
 
     useEffect(() => {
         const keyboardWillShow = Keyboard.addListener(
@@ -54,6 +71,7 @@ const CognitoSignIn = () => {
         try {
             const result = await signIn(userEmail, password);
             if (result.success && result.user?.username) {
+                await saveAuthCredentials(userEmail, password);
                 await storeAuthTokens(result.session);
 
                 const pendingData: PendingAuthData = {
