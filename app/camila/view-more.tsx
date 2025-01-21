@@ -1,33 +1,55 @@
 // app/camila/view-more.tsx
 import React, { useState, useEffect } from 'react';
-import { View, Text, TouchableOpacity, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { ListingData } from '@/types/listingData';
+import { ModelPreference } from '@/types/chatInterface';
+import ListingCard from '@/components/ListingCard';
 import SearchFilters from '@/components/SearchFilters';
-import ListingCard, { getFilters } from '@/components/ListingCard';
+import ListingsPrefetcher from '@/components/listings/ListingsPrefetcher';
+
+interface ParsedListingsData {
+    cachedListings: ListingData[];
+    listingIds: string[];
+    modelPreference: ModelPreference;
+}
 
 const ViewMore = () => {
     const router = useRouter();
     const { listingsData } = useLocalSearchParams();
     const [listings, setListings] = useState<ListingData[]>([]);
-    const [showFilters, setShowFilters] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
     const [mediaIndices, setMediaIndices] = useState<{ [key: string]: number }>({});
+    const [showFilters, setShowFilters] = useState(false);
+    const [modelPreference, setModelPreference] = useState<ModelPreference | null>(null);
+    const [allListingIds, setAllListingIds] = useState<string[]>([]);
 
     useEffect(() => {
         if (!listingsData) return;
+        
         try {
             const decodedData = decodeURIComponent(listingsData as string);
-            const parsedListings = JSON.parse(decodedData);
-            setListings(parsedListings);
-            // Initialize media indices for each listing
+            const parsed = JSON.parse(decodedData);
+            
+            if (!Array.isArray(parsed.cachedListings)) {
+                console.error('Invalid listings data');
+                return;
+            }
+    
+            console.log('Rendering view-more with listings:', parsed.cachedListings.length);
+            
+            setModelPreference(parsed.modelPreference);
+            setListings(parsed.cachedListings);
+            
             const indices = {};
-            parsedListings.forEach((listing: ListingData) => {
+            parsed.cachedListings.forEach((listing: ListingData) => {
                 indices[listing.listing_id] = 0;
             });
             setMediaIndices(indices);
+    
         } catch (error) {
-            console.error('Error parsing listings:', error);
+            console.error('Error parsing listings data:', error);
         }
     }, [listingsData]);
 
@@ -48,6 +70,26 @@ const ViewMore = () => {
 
     return (
         <View className="flex-1 bg-gray-100">
+            {modelPreference && allListingIds.length > 0 && (
+                <ListingsFetcher
+                    cachedListings={listings}
+                    allListingIds={allListingIds}
+                    modelPreference={modelPreference}
+                    onListingsUpdate={(updatedListings) => {
+                        console.log('Received updated listings:', updatedListings.length);
+                        setListings(updatedListings);
+                        const newIndices = { ...mediaIndices };
+                        updatedListings.forEach(listing => {
+                            if (!(listing.listing_id in newIndices)) {
+                                newIndices[listing.listing_id] = 0;
+                            }
+                        });
+                        setMediaIndices(newIndices);
+                    }}
+                    onLoadingStateChange={setIsLoading}
+                />
+            )}
+
             <Stack.Screen 
                 options={{
                     title: "Camila",
@@ -76,6 +118,8 @@ const ViewMore = () => {
                 keyExtractor={(item) => item.listing_id.toString()}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8 }}
+                maxToRenderPerBatch={5}
+                windowSize={5}
             />
 
             <TouchableOpacity
@@ -96,8 +140,14 @@ const ViewMore = () => {
             <SearchFilters 
                 visible={showFilters}
                 onDismiss={() => setShowFilters(false)}
-                filters={getFilters()}
+                modelPreference={modelPreference}
             />
+
+            {isLoading && (
+                <View className="absolute top-0 left-0 right-0 bottom-0 justify-center items-center bg-black/30">
+                    <ActivityIndicator size="large" color="#54B4AF" />
+                </View>
+            )}
         </View>
     );
 };

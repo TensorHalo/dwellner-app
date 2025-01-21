@@ -41,7 +41,7 @@ export class ListingsApi {
 
     private transformResponseToListingData(response: any): ListingData {
         return {
-            listing_id: response.ListingId,
+            listing_id: response.ListingKey,
             address: response.UnparsedAddress,
             city: response.City,
             architectural_style: this.parseJsonString(response.ArchitecturalStyle),

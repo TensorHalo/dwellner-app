@@ -3,7 +3,7 @@ import React from 'react';
 import { TouchableOpacity, Text, View, Image } from 'react-native';
 import { ListingData } from '@/types/listingData';
 import { ModelPreference } from '@/types/chatInterface';
-import { ListingsCache } from './listings/ListingsCache';  // Changed to named import
+import { ListingsCache } from './listings/ListingsCache';
 
 interface ListingsButtonProps {
     listings: ListingData[];

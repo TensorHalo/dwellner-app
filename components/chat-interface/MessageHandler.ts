@@ -32,7 +32,7 @@ export class MessageHandler {
         if (show_listings_flag && Array.isArray(listing) && listing[0]) {
             const firstListing = listing[0];
             const listings: ListingData[] = [{
-                listing_id: firstListing.ListingId,
+                listing_id: firstListing.ListingKey,
                 address: firstListing.UnparsedAddress,
                 city: firstListing.City,
                 architectural_style: this.parseJsonArray(firstListing.ArchitecturalStyle),

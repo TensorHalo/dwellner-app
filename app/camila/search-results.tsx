@@ -1,26 +1,17 @@
 // @/app/camila/search-results.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { 
-    View, 
-    Text, 
-    TouchableOpacity,
-    Dimensions,
-    Animated,
-    StyleSheet,
-    BackHandler,
-} from 'react-native';
+import { View, Text, TouchableOpacity, Dimensions, Animated, StyleSheet, BackHandler, Alert, Linking } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import MapView, { Marker, Region } from 'react-native-maps';
-import { MaterialIcons } from '@expo/vector-icons';
 import { ListingData } from '@/types/listingData';
 import { ModelPreference } from '@/types/chatInterface';
 import SearchFilters from '@/components/SearchFilters';
 import ListingCard from '@/components/ListingCard';
 import NearbyFacilities from '@/components/NearbyFacilities';
-import ListingsCache from '@/components/listings/ListingsCache';
+import { ListingsCache } from '@/components/listings/ListingsCache';
 import { ListingsApi } from '@/components/listings/ListingsApi';
 import { getAuthTokens } from '@/utils/authTokens';
+import ListingsPrefetcher from '@/components/listings/ListingsPrefetcher';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -41,14 +32,24 @@ const SearchResults = () => {
     // Animation refs
     const slideAnim = useRef(new Animated.Value(0)).current;
     const cardSlideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-    const mapRef = useRef<MapView>(null);
 
     // Service refs
     const listingsApiRef = useRef<ListingsApi | null>(null);
     const cache = ListingsCache.getInstance();
     const MAX_VISIBLE_LISTINGS = 8;
     const currentListing = listings[currentIndex];
-    const visibleListingsCount = Math.min(MAX_VISIBLE_LISTINGS, listings.length);
+    const [isNextListingReady, setIsNextListingReady] = useState(false);
+    const [isFetching, setIsFetching] = useState(false);
+    const prefetchingRef = useRef<{ [key: string]: boolean }>({});
+
+    const isMounted = useRef(true);
+
+    useEffect(() => {
+        return () => {
+            isMounted.current = false;
+            cache.clearCache();
+        };
+    }, []);
 
     // Initialize API and setup cleanup
     useEffect(() => {
@@ -90,77 +91,103 @@ const SearchResults = () => {
             const decodedData = decodeURIComponent(listingsData as string);
             const { listings: initialListings, modelPreference: pref, listingIds } = JSON.parse(decodedData);
 
-            setModelPreference(pref);
-
             if (initialListings?.[0]) {
-                // Store first listing in cache and display
                 cache.initializeWithFirstListing(initialListings[0], listingIds, pref);
                 setListings([initialListings[0]]);
-                
-                // Start prefetching next listing
-                prefetchNextListing();
             }
         } catch (error) {
             console.error('Error initializing listings:', error);
         }
     }, [listingsData]);
 
-    const fetchListingDetail = async (listingId: string) => {
-        if (!listingsApiRef.current || !modelPreference) return null;
-        try {
-            const listingData = await listingsApiRef.current.fetchListingDetail(
-                listingId,
-                modelPreference
-            );
-            console.log('Successfully fetched listing:', listingId);
-            cache.cacheListing(listingData);
-            return listingData;
-        } catch (error) {
-            console.error('Error fetching listing detail:', error);
-            return null;
-        }
-    };
-
-    const prefetchNextListing = async () => {
-        const nextListingId = cache.getNextUncachedListingId(currentIndex);
-        if (nextListingId && !isLoading) {
-            console.log('Prefetching next listing:', nextListingId);
-            setIsLoading(true);
-            await fetchListingDetail(nextListingId);
-            setIsLoading(false);
-        }
-    };
-
-    // Prefetch next listing when current index changes
+    // Effect for prefetching next listing
     useEffect(() => {
-        prefetchNextListing();
-    }, [currentIndex]);
+        if (!listings.length || !cache.getModelPreference() || !listingsApiRef.current) return;
+        
+        const startPrefetch = async () => {
+            const nextIndex = currentIndex + 1;
+            if (nextIndex >= MAX_VISIBLE_LISTINGS) return;
+
+            const nextListingId = cache.getListingIds()[nextIndex];
+            if (!nextListingId || prefetchingRef.current[nextListingId]) return;
+
+            // Check if already cached
+            const cachedListing = cache.getListing(nextListingId);
+            if (cachedListing) {
+                setIsNextListingReady(true);
+                return;
+            }
+
+            // Start prefetch
+            try {
+                prefetchingRef.current[nextListingId] = true;
+                console.log('Starting prefetch for listing:', nextListingId);
+                
+                const listingData = await listingsApiRef.current.fetchListingDetail(
+                    nextListingId,
+                    cache.getModelPreference()!
+                );
+                
+                if (listingData && isMounted.current) {
+                    console.log('Successfully prefetched:', nextListingId);
+                    cache.cacheListing(listingData);
+                    setIsNextListingReady(true);
+                }
+            } catch (error) {
+                console.error('Prefetch error:', error);
+                setIsNextListingReady(false);
+            } finally {
+                prefetchingRef.current[nextListingId] = false;
+            }
+        };
+
+        startPrefetch();
+    }, [currentIndex, listings]);
+
+    const handleOpenListingUrl = () => {
+        if (!currentListing?.listing_url) return;
+
+        const url = currentListing.listing_url.startsWith('http') 
+            ? currentListing.listing_url 
+            : `https://${currentListing.listing_url}`;
+
+        Linking.openURL(url).catch(() => {
+            Alert.alert('Error', 'Unable to open listing URL');
+        });
+    };
 
     const handleNextListing = async () => {
-        if (currentIndex === MAX_VISIBLE_LISTINGS - 1) {
-            navigateToViewMore();
-            return;
-        }
+        if (currentIndex >= MAX_VISIBLE_LISTINGS - 1) return;
 
         const nextListingId = cache.getListingIds()[currentIndex + 1];
         if (!nextListingId) return;
 
         const nextListing = cache.getListing(nextListingId);
         if (nextListing) {
-            console.log('Using cached listing:', nextListingId);
+            setIsNextListingReady(false);
             setListings(prev => [...prev, nextListing]);
             setCurrentIndex(prev => prev + 1);
             setCurrentMediaIndex(0);
         } else {
-            console.log('Fetching next listing:', nextListingId);
+            // If next listing isn't cached yet, show loading and wait
             setIsLoading(true);
-            const fetchedListing = await fetchListingDetail(nextListingId);
-            setIsLoading(false);
-
-            if (fetchedListing) {
-                setListings(prev => [...prev, fetchedListing]);
-                setCurrentIndex(prev => prev + 1);
-                setCurrentMediaIndex(0);
+            try {
+                const listingData = await listingsApiRef.current?.fetchListingDetail(
+                    nextListingId,
+                    cache.getModelPreference()!
+                );
+                
+                if (listingData) {
+                    cache.cacheListing(listingData);
+                    setListings(prev => [...prev, listingData]);
+                    setCurrentIndex(prev => prev + 1);
+                    setCurrentMediaIndex(0);
+                }
+            } catch (error) {
+                console.error('Error fetching next listing:', error);
+                Alert.alert('Error', 'Failed to load next listing');
+            } finally {
+                setIsLoading(false);
             }
         }
     };
@@ -221,17 +248,59 @@ const SearchResults = () => {
         router.back();
     };
 
-    const navigateToViewMore = () => {
-        const allListings = cache.getAllCachedListings();
-        router.push({
-            pathname: '/camila/view-more',
-            params: { 
-                listingsData: encodeURIComponent(JSON.stringify({
-                    listings: allListings,
-                    modelPreference
-                }))
+    const navigateToViewMore = async () => {
+        setIsLoading(true);
+
+        try {
+            const prefetcher = ListingsPrefetcher.getInstance();
+            
+            const tokens = await getAuthTokens();
+            if (!tokens?.accessToken) {
+                throw new Error('No access token available');
             }
-        });
+
+            prefetcher.initialize(tokens.accessToken);
+
+            // Initialize cache with current listings
+            const currentListings = cache.getAllCachedListings();
+            console.log('Initializing prefetcher with current listings:', currentListings.map(l => l.listing_id));
+            prefetcher.initializeCache(currentListings);
+
+            // Get all listing IDs from chat response
+            const allIds = cache.getListingIds();
+            console.log('Total listing IDs to handle:', allIds);
+
+            // Fetch missing listings
+            const allListings = await prefetcher.fetchMissingListings(
+                allIds,
+                modelPreference!,
+                (current, total) => {
+                    console.log(`Fetch progress: ${current}/${total} listings`);
+                }
+            );
+
+            if (allListings.length === 0) {
+                throw new Error('Failed to load listings');
+            }
+
+            console.log('Navigation with total listings:', allListings.length);
+
+            // Navigate with complete data
+            router.push({
+                pathname: '/camila/view-more',
+                params: { 
+                    listingsData: encodeURIComponent(JSON.stringify({
+                        cachedListings: allListings,
+                        modelPreference: modelPreference
+                    }))
+                }
+            });
+        } catch (error) {
+            console.error('Error during prefetch:', error);
+            Alert.alert('Error', 'Failed to load all listings. Please try again.');
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     if (!listings.length || !currentListing) {
@@ -353,13 +422,16 @@ const SearchResults = () => {
                     <View className="flex-row items-center justify-center my-3 px-8">
                         <TouchableOpacity 
                             className="bg-white p-3 rounded-full mr-2"
-                            onPress={() => setShowFilters(true)}
+                            onPress={handleOpenListingUrl}
                         >
                             <Feather name="info" size={24} color="black" />
                         </TouchableOpacity>
 
                         <View className="bg-white rounded-full flex-row items-center py-2 px-8">
-                            <TouchableOpacity onPress={handlePreviousListing}>
+                            <TouchableOpacity 
+                                onPress={handlePreviousListing}
+                                disabled={currentIndex === 0}
+                            >
                                 <Feather 
                                     name="chevron-left" 
                                     size={24} 
@@ -369,11 +441,14 @@ const SearchResults = () => {
                             <Text className="mx-6 font-medium">
                                 {currentIndex + 1}/{Math.min(MAX_VISIBLE_LISTINGS, cache.getListingIds().length)}
                             </Text>
-                            <TouchableOpacity onPress={handleNextListing}>
+                            <TouchableOpacity 
+                                onPress={handleNextListing}
+                                disabled={isLoading}
+                            >
                                 <Feather 
                                     name="chevron-right" 
                                     size={24} 
-                                    color="black" 
+                                    color={isLoading ? "#CCCCCC" : "black"} 
                                 />
                             </TouchableOpacity>
                         </View>
