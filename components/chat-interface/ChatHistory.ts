@@ -1,10 +1,11 @@
-// @/components/chat-interface/ChatHistory.ts 
-import { DynamoDBClient, UpdateItemCommand } from "@aws-sdk/client-dynamodb"; 
-import { ApiResponse } from "@/types/chatInterface";
+// @/components/chat-interface/ChatHistory.ts
+import { DynamoDBClient, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
+import { ChatMessage, ApiResponse } from '@/types/chatInterface';
+import { MessageHandler } from "./MessageHandler";
 
-export class ChatHistoryService { 
-    private client: DynamoDBClient; 
-    private readonly TABLE_NAME = "dwellner_users";
+export class ChatHistoryService {
+    private client: DynamoDBClient;
+    private readonly TABLE_NAME = "camila_chat_history";
 
     constructor() {
         this.client = new DynamoDBClient({
@@ -15,64 +16,98 @@ export class ChatHistoryService {
             }
         });
     }
-    
+
     async addChatHistory(userId: string, sessionId: string, response: ApiResponse): Promise<void> {
         try {
-            // console.log('Raw response:', JSON.stringify(response, null, 2));
             const firstResponse = Array.isArray(response) ? response[0] : 
                                 Array.isArray(response.response) ? response.response[0] : null;
-    
+
             if (!firstResponse) {
                 throw new Error('Invalid response format');
             }
-    
-            const modelPreferenceMap = firstResponse.model_preference === null ? 
-                { M: { } } : // Empty map for null model_preference
-                { 
-                    M: Object.entries(firstResponse.model_preference || {}).reduce((acc, [key, value]) => ({
-                        ...acc,
-                        [key]: { S: String(value ?? '') }
-                    }), {})
-                };
-    
-            const listingIdsArray = Array.isArray(firstResponse.listing_ids) ? 
-                firstResponse.listing_ids.map(id => ({ S: String(id) })) : [];
-    
-            const historyEntry = {
-                M: {
-                    timestamp: { S: new Date().toISOString() },
-                    sessionId: { S: sessionId },
-                    response: { 
-                        M: {
-                            resp: { S: firstResponse.resp || '' },
-                            show_listings_flag: { BOOL: Boolean(firstResponse.show_listings_flag) },
-                            listing_ids: { L: listingIdsArray },
-                            model_preference: modelPreferenceMap
+
+            const { textMessages, listingsMessage } = MessageHandler.processApiResponse(response);
+            const responseGroup = textMessages[0]?.responseGroup || Date.now();
+
+            // Format split messages including the listings message if present
+            const splitMessages = {
+                L: textMessages.map((msg, index) => ({
+                    M: {
+                        text: { S: msg.text || '' },
+                        index: { N: index.toString() },
+                        timestamp: { S: new Date().toISOString() },
+                        model_preference: msg.modelPreference ? {
+                            M: Object.entries(msg.modelPreference).reduce((acc, [key, value]) => ({
+                                ...acc,
+                                [key]: { S: String(value) }
+                            }), {})
+                        } : { M: {} },
+                        listing_ids: {
+                            L: (msg.listingIds || []).map(id => ({ S: id }))
                         }
                     }
-                }
+                }))
             };
-    
-            // console.log('Constructed history entry:', JSON.stringify(historyEntry, null, 2));
-    
+
+            // Add listings message as the last split message if present
+            if (listingsMessage) {
+                splitMessages.L.push({
+                    M: {
+                        text: { S: '' },
+                        index: { N: textMessages.length.toString() },
+                        timestamp: { S: new Date().toISOString() },
+                        listings: {
+                            L: listingsMessage.listings?.map(listing => ({
+                                M: {
+                                    listing_id: { S: listing.listing_id },
+                                    address: { S: listing.address },
+                                    city: { S: listing.city },
+                                    price: { N: listing.list_price.toString() }
+                                }
+                            })) || []
+                        },
+                        model_preference: listingsMessage.modelPreference ? {
+                            M: Object.entries(listingsMessage.modelPreference).reduce((acc, [key, value]) => ({
+                                ...acc,
+                                [key]: { S: String(value) }
+                            }), {})
+                        } : { M: {} },
+                        listing_ids: {
+                            L: (listingsMessage.listingIds || []).map(id => ({ S: id }))
+                        }
+                    }
+                });
+            }
+
+            // Create new message entry
+            const newMessage = {
+                L: [{
+                    M: {
+                        message_id: { S: responseGroup.toString() },
+                        split_messages: splitMessages
+                    }
+                }]
+            };
+
+            // Update command to append the new message to the session's messages array
             const command = new UpdateItemCommand({
                 TableName: this.TABLE_NAME,
                 Key: {
-                    "pk": { S: `USER#${userId}` },
-                    "sk": { S: `PROFILE#${userId}` }
+                    "user_id": { S: userId },
+                    "session_id": { S: sessionId }
                 },
-                UpdateExpression: "SET chat_history = list_append(if_not_exists(chat_history, :empty_list), :history_entry)",
+                UpdateExpression: "SET messages = list_append(if_not_exists(messages, :empty_list), :new_message)",
                 ExpressionAttributeValues: {
                     ":empty_list": { L: [] },
-                    ":history_entry": { L: [historyEntry] }
+                    ":new_message": newMessage
                 }
             });
-    
+
             await this.client.send(command);
             console.log('Successfully added chat history entry');
+
         } catch (error) {
-            console.error('Error details:', {
-                error,
+            console.error('Error adding chat history:', {
                 errorMessage: error.message,
                 errorStack: error.stack
             });

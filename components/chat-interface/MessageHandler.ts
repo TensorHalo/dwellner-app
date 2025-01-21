@@ -12,7 +12,6 @@ export class MessageHandler {
         const responseGroup = Date.now();
         const { resp, show_listings_flag, model_preference, listing_ids, listing } = response;
         
-        // Split text only if it contains \n\n, otherwise keep as single message
         const textParts = resp.includes('\n\n') 
             ? resp.split('\n\n').filter(part => part.trim() !== '')
             : [resp];
@@ -46,12 +45,14 @@ export class MessageHandler {
                     latitude: firstListing.Latitude,
                     longitude: firstListing.Longitude
                 },
-                list_price: firstListing.TotalActualRent,
+                list_price: firstListing.ListPrice || firstListing.TotalActualRent,
                 parking_features: this.parseJsonArray(firstListing.ParkingFeatures),
                 property_type: this.parseStructureType(firstListing.StructureType),
                 photos_count: firstListing.PhotosCount || 0,
+                listing_url: firstListing.ListingURL || '',
                 media: Array.isArray(firstListing.Media) ? firstListing.Media :
-                    typeof firstListing.Media === 'string' ? JSON.parse(firstListing.Media) : []
+                    typeof firstListing.Media === 'string' ? JSON.parse(firstListing.Media) : [],
+                tags: Array.isArray(firstListing.tags) ? firstListing.tags : []  // Added tags processing
             }];
 
             listingsMessage = {

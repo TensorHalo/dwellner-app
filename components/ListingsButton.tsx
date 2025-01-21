@@ -3,11 +3,11 @@ import React from 'react';
 import { TouchableOpacity, Text, View, Image } from 'react-native';
 import { ListingData } from '@/types/listingData';
 import { ModelPreference } from '@/types/chatInterface';
-import ListingsCache from './listings/ListingsCache';
+import { ListingsCache } from './listings/ListingsCache';  // Changed to named import
 
 interface ListingsButtonProps {
     listings: ListingData[];
-    modelPreference: ModelPreference;
+    modelPreference?: ModelPreference;
     listingIds: string[];
     onPress: () => void;
 }
@@ -20,12 +20,12 @@ const ListingsButton: React.FC<ListingsButtonProps> = ({
 }) => {
     const handlePress = () => {
         // Initialize the cache with the first listing
-        if (listings.length > 0) {
+        if (listings?.length > 0) {
             const cache = ListingsCache.getInstance();
             cache.initializeWithFirstListing(
                 listings[0],
                 listingIds,
-                modelPreference
+                modelPreference || null
             );
         }
         onPress();

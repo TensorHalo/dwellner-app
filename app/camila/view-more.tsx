@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, FlatList } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
-import { ListingData } from '@/utils/firebase';
+import { ListingData } from '@/types/listingData';
 import SearchFilters from '@/components/SearchFilters';
 import ListingCard, { getFilters } from '@/components/ListingCard';
 

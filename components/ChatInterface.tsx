@@ -119,21 +119,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
         
         try {
             const { textMessages, listingsMessage } = MessageHandler.processApiResponse(responseData);
-
-            if (userId && userId.trim() !== '') {
-                try {
-                    console.log('Saving chat history for user:', userId);
-                    await chatHistoryService.current.addChatHistory(
-                        userId,
-                        sessionId,
-                        responseData
-                    );
-                } catch (historyError) {
-                    console.error('Failed to save chat history:', historyError);
-                }
-            } else {
-                console.log('No userId available for chat history');
-            }
             
             if (textMessages.length > 0) {
                 const messageAnimator = new MessageAnimator(typingTimeoutRef);
@@ -149,6 +134,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                     setChatMessages(prev => [...prev, ...remainingMessages]);
                     await messageAnimator.animateMessages(remainingMessages, updateMessage);
                 }
+            }
+
+            if (userId && userId.trim() !== '') {
+                try {
+                    console.log('Saving chat history for user:', userId);
+                    await chatHistoryService.current.addChatHistory(
+                        userId,
+                        sessionId,
+                        responseData
+                    );
+                } catch (historyError) {
+                    console.error('Failed to save chat history:', historyError);
+                }
+            } else {
+                console.log('No userId available for chat history');
             }
         } catch (error) {
             console.error('Error handling API response:', error);

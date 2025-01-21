@@ -23,21 +23,6 @@ import { ListingsApi } from '@/components/listings/ListingsApi';
 import { getAuthTokens } from '@/utils/authTokens';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const MAX_VISIBLE_LISTINGS = 8;
-
-const PLACE_ICONS = {
-    restaurant: 'restaurant',
-    bar: 'local-bar',
-    store: 'store',
-    police: 'local-police'
-};
-
-const PLACE_COLORS = {
-    restaurant: '#FF6B6B',
-    bar: '#4ECDC4',
-    store: '#45B7D1',
-    police: '#2C3E50'
-};
 
 const SearchResults = () => {
     const router = useRouter();
@@ -61,7 +46,7 @@ const SearchResults = () => {
     // Service refs
     const listingsApiRef = useRef<ListingsApi | null>(null);
     const cache = ListingsCache.getInstance();
-
+    const MAX_VISIBLE_LISTINGS = 8;
     const currentListing = listings[currentIndex];
     const visibleListingsCount = Math.min(MAX_VISIBLE_LISTINGS, listings.length);
 
@@ -127,6 +112,7 @@ const SearchResults = () => {
                 listingId,
                 modelPreference
             );
+            console.log('Successfully fetched listing:', listingId);
             cache.cacheListing(listingData);
             return listingData;
         } catch (error) {
@@ -138,6 +124,7 @@ const SearchResults = () => {
     const prefetchNextListing = async () => {
         const nextListingId = cache.getNextUncachedListingId(currentIndex);
         if (nextListingId && !isLoading) {
+            console.log('Prefetching next listing:', nextListingId);
             setIsLoading(true);
             await fetchListingDetail(nextListingId);
             setIsLoading(false);
@@ -160,10 +147,12 @@ const SearchResults = () => {
 
         const nextListing = cache.getListing(nextListingId);
         if (nextListing) {
+            console.log('Using cached listing:', nextListingId);
             setListings(prev => [...prev, nextListing]);
             setCurrentIndex(prev => prev + 1);
             setCurrentMediaIndex(0);
         } else {
+            console.log('Fetching next listing:', nextListingId);
             setIsLoading(true);
             const fetchedListing = await fetchListingDetail(nextListingId);
             setIsLoading(false);
@@ -183,7 +172,6 @@ const SearchResults = () => {
         }
     };
 
-    // Keep your existing UI-related functions
     const toggleMap = () => {
         if (showMap) {
             Animated.spring(slideAnim, {
@@ -268,54 +256,6 @@ const SearchResults = () => {
                     ),
                 }}
             />
-
-            {/* Map View (positioned behind the content)
-            <View style={StyleSheet.absoluteFill}>
-                <MapView
-                    ref={mapRef}
-                    style={{ flex: 1 }}
-                    initialRegion={currentRegion || undefined}
-                    onMapReady={() => setMapReady(true)}
-                    showsUserLocation={false}
-                >
-                    {showMap && currentListing && (
-                        <>
-                            <Marker
-                                coordinate={currentListing.coordinates}
-                                onPress={handleMarkerPress}
-                            >
-                                <TouchableOpacity 
-                                    className="bg-white rounded-2xl px-3 py-2 shadow-lg"
-                                    onPress={handleMarkerPress}
-                                    activeOpacity={0.7}
-                                >
-                                    <Text className="font-medium text-base">
-                                        ${currentListing.list_price?.toLocaleString()}
-                                    </Text>
-                                </TouchableOpacity>
-                            </Marker>
-                            {facilities.map((facility, index) => (
-                                <Marker
-                                    key={`facility-${index}`}
-                                    coordinate={facility.coordinates}
-                                >
-                                    <View style={{
-                                        backgroundColor: PLACE_COLORS[facility.type as keyof typeof PLACE_COLORS],
-                                        padding: 8,
-                                        borderRadius: 20,
-                                    }}>
-                                        <MaterialIcons 
-                                            name={PLACE_ICONS[facility.type as keyof typeof PLACE_ICONS]} 
-                                            size={20} 
-                                            color="white" 
-                                        />
-                                    </View>
-                                </Marker>
-                            ))}
-                        </>
-                    )}
-                </MapView>
-            </View> */}
 
             {showListingCard && showMap && (
                 <Animated.View
@@ -426,7 +366,9 @@ const SearchResults = () => {
                                     color={currentIndex === 0 ? "#CCCCCC" : "black"} 
                                 />
                             </TouchableOpacity>
-                            <Text className="mx-6 font-medium">{currentIndex + 1}/{visibleListingsCount}</Text>
+                            <Text className="mx-6 font-medium">
+                                {currentIndex + 1}/{Math.min(MAX_VISIBLE_LISTINGS, cache.getListingIds().length)}
+                            </Text>
                             <TouchableOpacity onPress={handleNextListing}>
                                 <Feather 
                                     name="chevron-right" 

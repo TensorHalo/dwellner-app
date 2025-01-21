@@ -17,6 +17,7 @@ export interface ListingData {
     parking_features: string[];
     property_type: string;
     photos_count: number;
+    listing_url: string;
     media: Array<{
         MediaKey: string;
         ResourceRecordKey: string;
@@ -29,4 +30,5 @@ export interface ListingData {
         ResourceName: string;
         MediaCategory: string;
     }>;
+    tags: string[];
 }

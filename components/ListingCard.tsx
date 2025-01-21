@@ -26,17 +26,6 @@ interface ListingCardProps {
     onAddressPress?: () => void;
 }
 
-export const getFilters = () => {
-    return [
-        { text: 'dogs friendly' },
-        { text: '300m to Starbucks' },
-        { text: 'TTC' },
-        { text: '350m to Shake Shack' },
-        { text: 'large window' },
-        { text: 'relatively new' }
-    ];
-};
-
 const ListingCard = ({ 
     listing, 
     containerStyle = {}, 
@@ -148,9 +137,10 @@ const ListingCard = ({
                 </View>
                 
                 <View className="flex-row justify-between items-center mt-2">
-                    <Text className="text-[#8CC7C3] text-base">
-                        ${listing.list_price?.toLocaleString()}
+                    <Text className="text-[#54B4AF] text-lg mb-3">
+                        ${listing.list_price?.toLocaleString() || 'Price not available'}
                     </Text>
+
                     <View className="flex-row gap-4">
                         <Text>{listing.bedrooms_total}🛏️</Text>
                         <Text>{listing.bathrooms_total}🚿</Text>
@@ -158,13 +148,13 @@ const ListingCard = ({
                     </View>
                 </View>
 
-                <View className="flex-row flex-wrap gap-2 mt-3">
-                    {getFilters().map((filter, index) => (
+                <View className="flex-row flex-wrap gap-2 mb-4">
+                    {listing.tags && listing.tags.map((tag, index) => (
                         <View 
-                            key={index}
-                            className="bg-gray-50 rounded-full px-3 py-1"
+                            key={index} 
+                            className="bg-gray-100 rounded-full px-3 py-1"
                         >
-                            <Text className="text-sm">{filter.text}</Text>
+                            <Text className="text-gray-600">{tag}</Text>
                         </View>
                     ))}
                 </View>

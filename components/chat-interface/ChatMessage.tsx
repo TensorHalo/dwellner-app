@@ -1,3 +1,4 @@
+// @/components/chat-interface/ChatMessage.tsx
 import React from 'react';
 import { View, Text, Image } from 'react-native';
 import { ChatMessage } from '@/types/chatInterface';
@@ -17,17 +18,25 @@ export const Message: React.FC<MessageProps> = ({
     messages,
     onListingsPress
 }) => {
+    // Handle listings message
     if (message.listings && message.listings.length > 0) {
         return (
             <View key={message.id} className="mb-4">
                 <View className="flex-row items-start">
                     <View style={{ flex: 1 }}>
                         <ListingsButton 
-                            onPress={() => onListingsPress(
-                                message.listings!, 
-                                message.modelPreference, 
-                                message.listingIds
-                            )} 
+                            listings={message.listings}
+                            modelPreference={message.modelPreference}
+                            listingIds={message.listingIds}
+                            onPress={() => {
+                                if (onListingsPress && message.listings) {
+                                    onListingsPress(
+                                        message.listings, 
+                                        message.modelPreference, 
+                                        message.listingIds
+                                    );
+                                }
+                            }}
                         />
                     </View>
                 </View>
@@ -35,12 +44,14 @@ export const Message: React.FC<MessageProps> = ({
         );
     }
 
+    // Determine if this is the first message in a group
     const isFirstInGroup = message.sender === 'bot' && (
         index === 0 ||
         messages[index - 1]?.sender !== 'bot' ||
         message.responseGroup !== messages[index - 1]?.responseGroup
     );
 
+    // Regular message rendering
     return (
         <View key={message.id} className="mb-4">
             <View className={`flex-row ${message.sender === 'user' ? 'justify-end' : 'items-start'}`}>
@@ -83,3 +94,5 @@ export const Message: React.FC<MessageProps> = ({
         </View>
     );
 };
+
+export default Message;
