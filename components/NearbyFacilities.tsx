@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, ActivityIndicator, Image } from 'react-native';
-import { ListingData } from '@/utils/firebase';
+import { View, Text, ActivityIndicator, Image, Animated } from 'react-native';
+import { ListingData } from '@/types/listingData';
+import MaskedView from '@react-native-masked-view/masked-view';
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyA1cRST4odpAAs30pWs5414iJebTTynDpo';
 
@@ -33,6 +34,66 @@ const formatDistance = (meters: number): string => {
     return (meters / 1000).toFixed(1) + 'km';
 };
 
+const Skeleton = ({ width, height, style }) => {
+    const animatedValue = new Animated.Value(0);
+
+    useEffect(() => {
+        Animated.loop(
+            Animated.sequence([
+                Animated.timing(animatedValue, {
+                    toValue: 1,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(animatedValue, {
+                    toValue: 0,
+                    duration: 1000,
+                    useNativeDriver: true,
+                }),
+            ])
+        ).start();
+    }, []);
+
+    const opacity = animatedValue.interpolate({
+        inputRange: [0, 1],
+        outputRange: [0.3, 0.7],
+    });
+
+    return (
+        <Animated.View
+            style={[
+                {
+                    width,
+                    height,
+                    backgroundColor: '#E1E9EE',
+                    opacity,
+                    borderRadius: 4,
+                },
+                style,
+            ]}
+        />
+    );
+};
+
+const LoadingFacilities = () => {
+    return (
+        <View className="flex-row">
+            <View className="w-[140px] h-[120px] rounded-lg bg-gray-100 items-center justify-center">
+                <ActivityIndicator size="large" color="#54B4AF" />
+            </View>
+            
+            <View className="flex-1 ml-4 justify-between h-[120px]">
+                {[1, 2, 3, 4].map((index) => (
+                    <View key={index} className="flex-row justify-between items-center py-1">
+                        <Skeleton width={150} height={20} style={{ marginRight: 8 }} />
+                        <Skeleton width={40} height={20} />
+                    </View>
+                ))}
+            </View>
+        </View>
+    );
+};
+
 const FacilityItem = ({ facility, activeTab }: FacilityItemProps) => {
     const metricValue = activeTab === 'Safety' 
         ? formatDistance(facility.distance)
@@ -59,6 +120,7 @@ const NearbyFacilities = ({ listing, activeTab }: NearbyFacilitiesProps) => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [selectedFacilityPhoto, setSelectedFacilityPhoto] = useState<string | null>(null);
+    const [photoLoading, setPhotoLoading] = useState(true);
 
     const getPhotoUrl = async (photoReference: string): Promise<string | null> => {
         try {
@@ -90,6 +152,7 @@ const NearbyFacilities = ({ listing, activeTab }: NearbyFacilitiesProps) => {
         }
 
         try {
+            setLoading(true);
             const { latitude, longitude } = listing.coordinates;
             const placeType = PLACE_TYPES[activeTab];
             const radius = activeTab === 'Safety' ? 5000 : 1000;
@@ -142,46 +205,58 @@ const NearbyFacilities = ({ listing, activeTab }: NearbyFacilitiesProps) => {
 
     useEffect(() => {
         setLoading(true);
+        setPhotoLoading(true);
         setError(null);
         fetchNearbyPlaces();
     }, [listing.coordinates, activeTab]);
 
+    if (loading) {
+        return <LoadingFacilities />;
+    }
+
+    if (error) {
+        return (
+            <View className="h-[120px] justify-center">
+                <Text className="text-gray-500 text-center text-sm">{error}</Text>
+            </View>
+        );
+    }
+
     return (
         <View className="flex-row">
-            {selectedFacilityPhoto ? (
-                <Image 
-                    source={{ uri: selectedFacilityPhoto }}
-                    className="w-[140px] h-[120px] rounded-lg"
-                    resizeMode="cover"
-                />
-            ) : (
-                <Image 
-                    source={require('@/assets/camila-avatar.jpg')}
-                    className="w-[140px] h-[120px] rounded-lg"
-                    resizeMode="cover"
-                />
-            )}
-            
-            <View className="flex-1 ml-4">
-                {loading ? (
-                    <View className="h-[120px] justify-center items-center">
-                        <ActivityIndicator size="small" color="#54B4AF" />
-                    </View>
-                ) : error ? (
-                    <View className="h-[120px] justify-center">
-                        <Text className="text-gray-500 text-center text-sm">{error}</Text>
-                    </View>
+            <View className="w-[140px] h-[120px] rounded-lg overflow-hidden">
+                {selectedFacilityPhoto ? (
+                    <>
+                        <Image 
+                            source={{ uri: selectedFacilityPhoto }}
+                            className="w-full h-full"
+                            resizeMode="cover"
+                            onLoadStart={() => setPhotoLoading(true)}
+                            onLoad={() => setPhotoLoading(false)}
+                        />
+                        {photoLoading && (
+                            <View className="absolute w-full h-full items-center justify-center bg-gray-100">
+                                <ActivityIndicator size="large" color="#54B4AF" />
+                            </View>
+                        )}
+                    </>
                 ) : (
-                    <View className="justify-between h-[120px]">
-                        {facilities.map((facility) => (
-                            <FacilityItem
-                                key={facility.placeId}
-                                facility={facility}
-                                activeTab={activeTab}
-                            />
-                        ))}
+                    <View className="w-full h-full items-center justify-center bg-gray-100">
+                        <ActivityIndicator size="large" color="#54B4AF" />
                     </View>
                 )}
+            </View>
+            
+            <View className="flex-1 ml-4">
+                <View className="justify-between h-[120px]">
+                    {facilities.map((facility) => (
+                        <FacilityItem
+                            key={facility.placeId}
+                            facility={facility}
+                            activeTab={activeTab}
+                        />
+                    ))}
+                </View>
             </View>
         </View>
     );

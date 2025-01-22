@@ -17,6 +17,7 @@
     "@expo/vector-icons": "^14.0.3",
     "@react-native-async-storage/async-storage": "1.23.1",
     "@react-native-google-signin/google-signin": "^13.1.0",
+    "@react-native-masked-view/masked-view": "^0.3.2",
     "@types/react": "~18.2.45",
     "amazon-cognito-identity-js": "latest",
     "aws-sdk": "latest",

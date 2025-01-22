@@ -66,6 +66,14 @@ const SearchResults = () => {
         };
     }, []);
 
+    useEffect(() => {
+        const preference = cache.getModelPreference();
+        if (preference) {
+            console.log('Setting model preference from cache:', preference);
+            setModelPreference(preference);
+        }
+    }, []);
+
     // Handle back button
     useEffect(() => {
         const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
@@ -94,6 +102,7 @@ const SearchResults = () => {
             if (initialListings?.[0]) {
                 cache.initializeWithFirstListing(initialListings[0], listingIds, pref);
                 setListings([initialListings[0]]);
+                setModelPreference(pref);
             }
         } catch (error) {
             console.error('Error initializing listings:', error);

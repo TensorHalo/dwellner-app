@@ -28,7 +28,11 @@ export class ListingsCache {
         // Use ListingKey for caching
         const listingKey = firstListing.listing_id.replace('C', '');
         this.cachedListings.set(listingKey, firstListing);
-        console.log('Initialized cache with listing:', listingKey);
+        console.log('Cache initialized with:', {
+            firstListingId: listingKey,
+            totalIds: allListingIds.length,
+            modelPreference: preference
+        });
     }
 
     cacheListing(listing: ListingData) {

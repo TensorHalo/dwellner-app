@@ -5,7 +5,7 @@ const API_CONFIG = {
     CHAT_API_ENDPOINT: 'https://api.dwellner.ca/api/v0/text_v4'
 };
 
-const MAX_RETRIES = 500;
+const MAX_RETRIES = 3;
 const RETRY_DELAY = 100;
 
 export class ChatApiService {
@@ -31,7 +31,7 @@ export class ChatApiService {
                 headers: {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json, text/plain, */*',
-                    'Authorization': `Bearer eyJraWQiOiIzY200STgwMVpudWRiUkY0b2xyeFF3SU1NbkVsd2FWWHBqbDdMRFc2cHZNPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhYzZkMjUzOC0zMGYxLTcwYzYtNjBkZi03ZmE4MjcxOThkYTYiLCJpc3MiOiJodHRwczpcL1wvY29nbml0by1pZHAuY2EtY2VudHJhbC0xLmFtYXpvbmF3cy5jb21cL2NhLWNlbnRyYWwtMV82eEV2Q0RuVDYiLCJjbGllbnRfaWQiOiJ1OGthN3JncmRzamdmZmY4dWlvNWRlZzdrIiwib3JpZ2luX2p0aSI6IjVlZjY1M2RhLTdmODQtNDEwZC1hZmIxLTU4MDVjMDg5Y2M0NCIsImV2ZW50X2lkIjoiYTJlZjU2ODYtZDY5YS00ZWIwLTk4OTktNDc4ZTE5Yjc3ZjgzIiwidG9rZW5fdXNlIjoiYWNjZXNzIiwic2NvcGUiOiJhd3MuY29nbml0by5zaWduaW4udXNlci5hZG1pbiIsImF1dGhfdGltZSI6MTczNzQzNzg2MywiZXhwIjoxNzM3NTI0MjYzLCJpYXQiOjE3Mzc0Mzc4NjMsImp0aSI6ImQzMmI3OTczLWNjMWYtNGQ1ZC1iMDQzLWI3MjBlNzNjOGFlMyIsInVzZXJuYW1lIjoiYWM2ZDI1MzgtMzBmMS03MGM2LTYwZGYtN2ZhODI3MTk4ZGE2In0.EMOmhrpAPgQBxBCO1MxErzb1b-oo4MErb-dBQAcuxnKdP8Y5n8my39PZoGUVl9Yy_aMYQPNbRgNWWDlUnRkp6t77H8A2k9G2GOkCzvVSJTuIsOhJOYO6eFw_jVAjaZAtDweQRcbPBrJmq_6QaRvCHVK92PgaItgIuq6g4AXST1PXHQg5m5SQ44Op1o2c0y9_UxGlCWeaAk3ry_qA-q1t_MelCb_dKRbtpVlgtsuXsZzs4_kR_DF4InXiYlGrjsqYWbF8zIXp0Vwu7hLy0bRPitvXHBzjL91dnVXxfIoYomvS903Udshsjc-B64IH0kvaW-AIa4SnTjz3AEv-vfdPyg`
+                    'Authorization': `Bearer eyJraWQiOiIzY200STgwMVpudWRiUkY0b2xyeFF3SU1NbkVsd2FWWHBqbDdMRFc2cHZNPSIsImFsZyI6IlJTMjU2In0.eyJzdWIiOiJhYzZkMjUzOC0zMGYxLTcwYzYtNjBkZi03ZmE4MjcxOThkYTYiLCJpc3MiOiJodHRwczpcL1wvY29nbml0by1pZHAuY2EtY2VudHJhbC0xLmFtYXpvbmF3cy5jb21cL2NhLWNlbnRyYWwtMV82eEV2Q0RuVDYiLCJjbGllbnRfaWQiOiJ1OGthN3JncmRzamdmZmY4dWlvNWRlZzdrIiwib3JpZ2luX2p0aSI6ImM0NmRmYzk0LTE3ZmYtNDAwMC04NTQ3LTM1MzUxOTgyM2I1ZCIsImV2ZW50X2lkIjoiODQ4ZTc4ZjUtYzA0MS00MWNkLTliZTYtNGFhMGNhMDdmNjE5IiwidG9rZW5fdXNlIjoiYWNjZXNzIiwic2NvcGUiOiJhd3MuY29nbml0by5zaWduaW4udXNlci5hZG1pbiIsImF1dGhfdGltZSI6MTczNzUyNTE2OSwiZXhwIjoxNzM3NjExNTY5LCJpYXQiOjE3Mzc1MjUxNjksImp0aSI6IjViNDNiMzUxLWNkZDMtNDA5Ni1iNWZhLWFjOGY1YTQ5MzJlYyIsInVzZXJuYW1lIjoiYWM2ZDI1MzgtMzBmMS03MGM2LTYwZGYtN2ZhODI3MTk4ZGE2In0.mz808Mp7ZECL9Lr0p4J8H4IDPfbfHcKqI3PL3-SLreFFmcDVlZhKt5G3F-NocGxQr3FkXm1mpBlyVBaBIT1bpvVuds9_7FPij63MRhsp7OF416XbPpwFo3DqJBuE7gcxEj7wm8IRIM3VzGTG4JKMFQ25wz1xlulkNtti2Mxc4u0BjsG-FZnHvb9Spv5IhptyETujbBeRHD2sNOa_xktOEPj6Dvd9XjQfN6RQ06McBHNi8Bf4WOYk3w4opS1xPV_N9EsKgTQsxbk7NSaOx6Kopp8keNPKxDvmpA_EjR0G9YU21_weBlAzw64Xq36BDs6vbwQDmZtTeaNYfie8YMq1fw`
                 },
                 body: requestBody
             });

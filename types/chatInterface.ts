@@ -23,6 +23,7 @@ export interface ChatMessage {
     displayedText?: string;
     modelPreference?: ModelPreference;
     listingIds?: string[];
+    isLoading?: boolean;
 }
 
 export interface ApiResponse {

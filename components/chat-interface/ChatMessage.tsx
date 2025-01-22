@@ -1,6 +1,6 @@
 // @/components/chat-interface/ChatMessage.tsx
 import React from 'react';
-import { View, Text, Image } from 'react-native';
+import { View, Text, Image, ActivityIndicator } from 'react-native';
 import { ChatMessage } from '@/types/chatInterface';
 import ListingsButton from '../ListingsButton';
 import { ListingData } from '@/types/listingData';
@@ -18,6 +18,24 @@ export const Message: React.FC<MessageProps> = ({
     messages,
     onListingsPress
 }) => {
+    if (message.isLoading) {
+        return (
+            <View key={message.id} className="mb-4">
+                <View className="flex-row items-start">
+                    <View className="w-8 h-8 mr-2">
+                        <Image 
+                            source={require('@/assets/camila-avatar.jpg')}
+                            className="w-8 h-8 rounded-full absolute top-0 left-0"
+                        />
+                    </View>
+                    <View className="bg-white px-5 py-4 rounded-xl">
+                        <ActivityIndicator size="small" color="#54B4AF" />
+                    </View>
+                </View>
+            </View>
+        );
+    }
+
     // Handle listings message
     if (message.listings && message.listings.length > 0) {
         return (

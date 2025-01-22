@@ -1,4 +1,3 @@
-// @/components/ChatInterface.tsx
 import { View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import React, { useState, useRef, useEffect } from 'react';
 import { Feather as FeatherIcon } from '@expo/vector-icons';
@@ -31,13 +30,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
     const [sessionId] = useState(() => `session_${Math.random().toString(36).substring(2, 15)}`);
     const router = useRouter();
     const chatHistoryService = useRef<ChatHistoryService>(new ChatHistoryService());
+    const hasGreetingSentRef = useRef(false);
+    const [hasStartedChat, setHasStartedChat] = useState(false);
 
     useEffect(() => {
         const initializeApiService = async () => {
             try {
                 const tokens = await getAuthTokens();
                 if (tokens) {
-                    setApiService(new ChatApiService(tokens.accessToken));
+                    const service = new ChatApiService(tokens.accessToken);
+                    setApiService(service);
+                    
+                    if (!hasGreetingSentRef.current) {
+                        hasGreetingSentRef.current = true;
+                        sendGreeting(service);
+                    }
                 } else {
                     console.error('No valid session found');
                     router.replace('/');
@@ -50,6 +57,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
 
         initializeApiService();
     }, [router]);
+
+    const sendGreeting = async (service: ChatApiService) => {
+        try {
+            console.log('Sending initial greeting...');
+            // onChatStart();
+            const greetingResponse = await service.sendMessage("Hello", sessionId);
+            await handleApiResponse(greetingResponse);
+        } catch (error) {
+            console.error('Error sending greeting:', error);
+        }
+    };
 
     useEffect(() => {
         scrollToBottom();
@@ -119,6 +137,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
         
         try {
             const { textMessages, listingsMessage } = MessageHandler.processApiResponse(responseData);
+            setChatMessages(prev => prev.filter(msg => !msg.isLoading));
             
             if (textMessages.length > 0) {
                 const messageAnimator = new MessageAnimator(typingTimeoutRef);
@@ -157,7 +176,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                 text: `Error processing response: ${error.message}`,
                 sender: 'bot',
             };
-            setChatMessages(prev => [...prev, errorMessage]);
+            setChatMessages(prev => [...prev.filter(msg => !msg.isLoading), {
+                id: Date.now(),
+                text: `Error processing response: ${error.message}`,
+                sender: 'bot',
+            }]);
         } finally {
             setIsShowingResponse(false);
         }
@@ -200,7 +223,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
     };
 
     const sendMessage = async () => {
-        
         if (!message.trim() || !apiService) {
             console.log('Message or apiService invalid:', {
                 messageEmpty: !message.trim(),
@@ -208,10 +230,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
             });
             return;
         }
-        
-        if (chatMessages.length === 0) {
-            console.log('First message, triggering onChatStart');
+
+        if (!hasStartedChat) {
             onChatStart();
+            setHasStartedChat(true);
         }
 
         const userMessage: ChatMessage = {
@@ -220,6 +242,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
             sender: 'user',
         };
         setChatMessages(prev => [...prev, userMessage]);
+
+        const loadingMessage: ChatMessage = {
+            id: Date.now() + 1,
+            text: '',
+            sender: 'bot',
+            isLoading: true
+        };
+        setChatMessages(prev => [...prev, loadingMessage]);
 
         const messageToSend = message.trim();
         setMessage('');
