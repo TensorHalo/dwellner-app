@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/app_logo.png",
-    "scheme": "dwellner",
+    "scheme": "camila",
     "userInterfaceStyle": "light",
     "splash": {
       "image": "./assets/app_logo.png",
@@ -50,7 +50,8 @@
             "useFrameworks": "static"
           }
         }
-      ]
+      ],
+      "@react-native-google-signin/google-signin"
     ],
     "extra": {
       "useTestVerification": true,

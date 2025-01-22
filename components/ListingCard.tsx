@@ -1,4 +1,4 @@
-// components/ListingCard.tsx
+// @/components/ListingCard.tsx
 import React from 'react';
 import { 
     View, 
@@ -11,7 +11,6 @@ import {
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { ListingData } from '@/types/listingData';
-import { useRouter } from 'expo-router';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 
@@ -115,7 +114,7 @@ const ListingCard = ({
             <View className="p-4">
                 <View className="h-12 flex-row justify-between items-start">
                     <TouchableOpacity 
-                        onPress={onAddressPress} 
+                        onPress={onAddressPress}
                         className="flex-1 mr-2"
                         activeOpacity={0.7}
                     >
@@ -133,7 +132,9 @@ const ListingCard = ({
                             {listing.address}
                         </Text>
                     </TouchableOpacity>
-                    <Text className="text-[#8CC7C3] text-sm">Apartment</Text>
+                    <Text className="text-[#8CC7C3] text-sm">
+                        {listing.property_type || 'Property'}
+                    </Text>
                 </View>
                 
                 <View className="flex-row justify-between items-center mt-2">
@@ -148,16 +149,18 @@ const ListingCard = ({
                     </View>
                 </View>
 
-                <View className="flex-row flex-wrap gap-2 mb-4">
-                    {listing.tags && listing.tags.map((tag, index) => (
-                        <View 
-                            key={index} 
-                            className="bg-gray-100 rounded-full px-3 py-1"
-                        >
-                            <Text className="text-gray-600">{tag}</Text>
-                        </View>
-                    ))}
-                </View>
+                {listing.tags && listing.tags.length > 0 && (
+                    <View className="flex-row flex-wrap gap-2">
+                        {listing.tags.map((tag, index) => (
+                            <View 
+                                key={index} 
+                                className="bg-gray-100 rounded-full px-3 py-1"
+                            >
+                                <Text className="text-gray-600">{tag}</Text>
+                            </View>
+                        ))}
+                    </View>
+                )}
             </View>
         </View>
     );

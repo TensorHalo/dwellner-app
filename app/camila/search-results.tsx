@@ -11,7 +11,9 @@ import NearbyFacilities from '@/components/NearbyFacilities';
 import { ListingsCache } from '@/components/listings/ListingsCache';
 import { ListingsApi } from '@/components/listings/ListingsApi';
 import { getAuthTokens } from '@/utils/authTokens';
+import ListingMap from '@/components/listings/ListingMap';
 import ListingsPrefetcher from '@/components/listings/ListingsPrefetcher';
+import LoadingOverlay from '@/components/listings/LoadingOverlay';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -32,6 +34,7 @@ const SearchResults = () => {
     // Animation refs
     const slideAnim = useRef(new Animated.Value(0)).current;
     const cardSlideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
+    const [loadingProgress, setLoadingProgress] = useState(0);
 
     // Service refs
     const listingsApiRef = useRef<ListingsApi | null>(null);
@@ -41,6 +44,10 @@ const SearchResults = () => {
     const [isNextListingReady, setIsNextListingReady] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
     const prefetchingRef = useRef<{ [key: string]: boolean }>({});
+
+    const handleAddressPress = () => {
+        setShowMap(true);
+    };
 
     const isMounted = useRef(true);
 
@@ -251,7 +258,7 @@ const SearchResults = () => {
 
     const handleBackPress = () => {
         if (showMap) {
-            toggleMap();
+            setShowMap(false);
             return;
         }
         router.back();
@@ -259,7 +266,8 @@ const SearchResults = () => {
 
     const navigateToViewMore = async () => {
         setIsLoading(true);
-
+        setLoadingProgress(0);
+    
         try {
             const prefetcher = ListingsPrefetcher.getInstance();
             
@@ -267,34 +275,57 @@ const SearchResults = () => {
             if (!tokens?.accessToken) {
                 throw new Error('No access token available');
             }
-
+    
             prefetcher.initialize(tokens.accessToken);
-
+    
             // Initialize cache with current listings
             const currentListings = cache.getAllCachedListings();
-            console.log('Initializing prefetcher with current listings:', currentListings.map(l => l.listing_id));
             prefetcher.initializeCache(currentListings);
-
-            // Get all listing IDs from chat response
-            const allIds = cache.getListingIds();
-            console.log('Total listing IDs to handle:', allIds);
-
-            // Fetch missing listings
-            const allListings = await prefetcher.fetchMissingListings(
-                allIds,
-                modelPreference!,
-                (current, total) => {
-                    console.log(`Fetch progress: ${current}/${total} listings`);
+    
+            // Get uncached listing IDs
+            const uncachedIds = cache.getUncachedListingIds();
+            const totalToFetch = uncachedIds.length;
+    
+            if (totalToFetch === 0) {
+                // If all listings are cached, navigate immediately
+                router.push({
+                    pathname: '/camila/view-more',
+                    params: { 
+                        listingsData: encodeURIComponent(JSON.stringify({
+                            cachedListings: currentListings,
+                            modelPreference: modelPreference
+                        }))
+                    }
+                });
+                return;
+            }
+    
+            let fetchedCount = 0;
+            const allListings = [...currentListings];
+    
+            // Fetch listings one by one to track progress
+            for (const listingId of uncachedIds) {
+                try {
+                    const listingData = await listingsApiRef.current?.fetchListingDetail(
+                        listingId,
+                        modelPreference!
+                    );
+    
+                    if (listingData) {
+                        cache.cacheListing(listingData);
+                        allListings.push(listingData);
+                        fetchedCount++;
+                        setLoadingProgress((fetchedCount / totalToFetch) * 100);
+                    }
+                } catch (error) {
+                    console.error('Error fetching listing:', listingId, error);
                 }
-            );
-
+            }
+    
             if (allListings.length === 0) {
                 throw new Error('Failed to load listings');
             }
-
-            console.log('Navigation with total listings:', allListings.length);
-
-            // Navigate with complete data
+    
             router.push({
                 pathname: '/camila/view-more',
                 params: { 
@@ -309,6 +340,7 @@ const SearchResults = () => {
             Alert.alert('Error', 'Failed to load all listings. Please try again.');
         } finally {
             setIsLoading(false);
+            setLoadingProgress(0);
         }
     };
 
@@ -367,6 +399,7 @@ const SearchResults = () => {
                         currentMediaIndex={currentMediaIndex}
                         onMediaIndexChange={setCurrentMediaIndex}
                         onClose={hideListingCard}
+                        onAddressPress={handleAddressPress}
                         onFavorite={() => {/* Handle favorite */}}
                     />
                 </Animated.View>
@@ -398,7 +431,7 @@ const SearchResults = () => {
                             listing={currentListing}
                             currentMediaIndex={currentMediaIndex}
                             onMediaIndexChange={setCurrentMediaIndex}
-                            onAddressPress={toggleMap}
+                            onAddressPress={handleAddressPress}
                         />
                     </View>
 
@@ -476,13 +509,23 @@ const SearchResults = () => {
                         </TouchableOpacity>
                     </View>
                 </View>
-
-                <SearchFilters 
-                    visible={showFilters}
-                    onDismiss={() => setShowFilters(false)}
-                    modelPreference={modelPreference}
-                />
             </Animated.View>
+            {currentListing && (
+                <ListingMap 
+                    listing={currentListing}
+                    visible={showMap}
+                    onClose={() => setShowMap(false)}
+                />
+            )}
+            <LoadingOverlay 
+                visible={isLoading} 
+                progress={loadingProgress} 
+            />
+            <SearchFilters 
+                visible={showFilters}
+                onDismiss={() => setShowFilters(false)}
+                modelPreference={modelPreference}
+            />
         </View>
     );
 };

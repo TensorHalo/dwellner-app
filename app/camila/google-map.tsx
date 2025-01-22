@@ -11,8 +11,9 @@ import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
-import { ListingData } from '@/utils/firebase';
-import ListingCard, { getFilters } from '@/components/ListingCard';
+import { ListingData } from '@/types/listingData';
+import ListingCard from '@/components/ListingCard';
+import { ModelPreference } from '@/types/chatInterface';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
