@@ -1,11 +1,11 @@
-import { View, Text, TouchableOpacity, Animated, Dimensions, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Animated, Dimensions, StyleSheet, Pressable, Keyboard } from 'react-native';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Stack, useRouter } from 'expo-router';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Sidebar from '@/components/Sidebar';
 import ChatInterface from '@/components/ChatInterface';
 import GetProModal from '@/components/get-pro/GetProModal';
-import { fetchPendingUserData, storeUserData, getUserData } from '@/utils/dynamodbEmailUtils';
+import { updateSignInFields, storeUserData, getUserData, updatePasswordResetFields, updateEmailCodeLoginFields } from '@/utils/dynamodbEmailUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DynamoDBUserRecord, PendingAuthData } from '@/types/user';
 
@@ -19,6 +19,7 @@ const HomeScreen = () => {
     const [isInChat, setIsInChat] = useState(false);
     const [isProModalVisible, setProModalVisible] = useState(false);
     const [userData, setUserData] = useState<DynamoDBUserRecord | null>(null);
+    const [chatKey, setChatKey] = useState(() => Date.now());
     const sidebarPosition = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
     const mainContentPosition = useRef(new Animated.Value(0)).current;
     
@@ -27,20 +28,46 @@ const HomeScreen = () => {
             const pendingDataStr = await AsyncStorage.getItem('pendingUserData');
             if (pendingDataStr) {
                 const pendingData = JSON.parse(pendingDataStr) as PendingAuthData;
-                console.log('Fetching data for user:', pendingData.cognito_id);
-                
+                let success = false;
+        
+                switch (pendingData.type) {
+                    case 'SIGNUP':
+                        success = await storeUserData(pendingData.userData);
+                        console.log('New user data stored: ', success);
+                        break;
+                    case 'SIGNIN':
+                        success = await updateSignInFields(pendingData.cognito_id, pendingData.email);
+                        console.log('Sign-in fields updated:', success);
+                        break;
+                    case 'PASSWORD_RESET':
+                        success = await updatePasswordResetFields(pendingData.cognito_id);
+                        console.log('Password reset fields updated:', success);
+                        break;
+                    case 'EMAIL_CODE_LOGIN':
+                        success = await updateEmailCodeLoginFields(pendingData.cognito_id);
+                        console.log('Email code login fields updated:', success);
+                        break;
+                }
+        
+                if (success) {
+                    await AsyncStorage.removeItem('pendingUserData');
+                }
+
                 const currentUserData = await getUserData(pendingData.cognito_id);
                 if (currentUserData) {
-                    console.log('Setting user data:', currentUserData);
                     setUserData(currentUserData);
+                    console.log('User data fetched successfully:', currentUserData);
                 }
             }
         } catch (error) {
-            console.error('Error fetching user data:', error);
+            console.error('Error handling user data:', error);
         }
     };
 
-    // Add this new function to handle user data updates
+    useEffect(() => {
+        fetchUserData();
+    }, []);
+
     const handleUserDataUpdate = useCallback(async () => {
         await fetchUserData();
     }, []);
@@ -49,7 +76,14 @@ const HomeScreen = () => {
         fetchUserData();
     }, []);
 
+    const handleChatRefresh = useCallback(() => {
+        setChatKey(Date.now());
+        setIsInChat(false);
+    }, []);
+
     const toggleSidebar = () => {
+        Keyboard.dismiss();
+
         const sidebarToValue = isSidebarVisible ? -SIDEBAR_WIDTH : 0;
         const mainContentToValue = isSidebarVisible ? 0 : (SIDEBAR_WIDTH - MENU_BUTTON_WIDTH);
 
@@ -105,10 +139,13 @@ const HomeScreen = () => {
                         headerTitleContainerStyle: {
                             paddingVertical: 15,
                         },
+                        gestureEnabled: false,
                         headerTitle: () => (
                             !isSidebarVisible && (
                                 isInChat ? (
-                                    <Text className="text-lg font-semibold">Camila</Text>
+                                    <Pressable onPress={handleChatRefresh}>
+                                        <Text className="text-lg font-semibold">Camila</Text>
+                                    </Pressable>
                                 ) : (
                                     <TouchableOpacity 
                                         onPress={() => setProModalVisible(true)}
@@ -137,7 +174,8 @@ const HomeScreen = () => {
                         headerShadowVisible: false,
                     }}
                 />
-                <ChatInterface 
+                <ChatInterface
+                    key={chatKey}
                     onChatStart={() => setIsInChat(true)} 
                     userId={userData?.cognito_id || ''} 
                 />

@@ -1,4 +1,3 @@
-// @/components/ListingCard.tsx
 import React from 'react';
 import { 
     View, 
@@ -7,12 +6,14 @@ import {
     TouchableOpacity, 
     FlatList, 
     Dimensions,
-    Linking 
+    Linking,
+    StyleSheet 
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import { ListingData } from '@/types/listingData';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
+const MEDIA_HEIGHT = 200;
 
 interface ListingCardProps {
     listing: ListingData;
@@ -36,6 +37,7 @@ const ListingCard = ({
     onAddressPress
 }: ListingCardProps) => {
     const mediaItems = listing.media || [];
+    const address = listing?.address || 'Address not available';
 
     const handleMediaScroll = (event: any) => {
         const contentOffset = event.nativeEvent.contentOffset.x;
@@ -45,29 +47,59 @@ const ListingCard = ({
         }
     };
 
+    const RealtorWatermark = () => {
+        const handlePress = () => {
+            if (!listing?.listing_url) return;
+            
+            const url = listing.listing_url.startsWith('http') 
+                ? listing.listing_url 
+                : `https://${listing.listing_url}`;
+                
+            Linking.openURL(url).catch((err) => {
+                console.error('Error opening listing URL:', err);
+            });
+        };
+    
+        return (
+            <TouchableOpacity 
+                onPress={handlePress}
+                style={styles.watermarkContainer}
+                activeOpacity={0.8}
+            >
+                <Image
+                    source={require('@/assets/powered_by_realtor.png')}
+                    style={styles.watermarkImage}
+                    resizeMode="contain"
+                />
+            </TouchableOpacity>
+        );
+    };
+
     const renderMediaItem = ({ item }: { item: any }) => {
         if (item.MediaCategory && item.MediaCategory.toLowerCase() !== "property photo") {
             return (
-                <TouchableOpacity
-                    style={{ width: SCREEN_WIDTH - 32, height: 200 }}
-                    className="bg-black items-center justify-center"
-                    onPress={() => Linking.openURL(item.MediaURL)}
-                >
-                    <View className="items-center">
-                        <Feather name="play-circle" size={48} color="white" />
-                        <Text className="text-white mt-4">Watch Virtual Tour</Text>
-                    </View>
-                </TouchableOpacity>
+                <View style={styles.mediaContainer}>
+                    <TouchableOpacity
+                        style={styles.videoContainer}
+                        onPress={() => Linking.openURL(item.MediaURL)}
+                    >
+                        <View className="items-center">
+                            <Feather name="play-circle" size={48} color="white" />
+                            <Text className="text-white mt-4">Watch Virtual Tour</Text>
+                        </View>
+                    </TouchableOpacity>
+                    <RealtorWatermark />
+                </View>
             );
         }
         return (
-            <View style={{ width: SCREEN_WIDTH - 32 }}>
+            <View style={styles.mediaContainer}>
                 <Image
                     source={{ uri: item.MediaURL }}
-                    style={{ width: SCREEN_WIDTH - 32, height: 200 }}
-                    className="rounded-t-3xl"
+                    style={styles.mediaImage}
                     resizeMode="cover"
                 />
+                <RealtorWatermark />
             </View>
         );
     };
@@ -82,7 +114,7 @@ const ListingCard = ({
                     showsHorizontalScrollIndicator={false}
                     onScroll={handleMediaScroll}
                     renderItem={renderMediaItem}
-                    keyExtractor={(item, index) => `${item.MediaURL}-${index}`}
+                    keyExtractor={(item, index) => `${item?.MediaURL || index}-${index}`}
                     snapToInterval={SCREEN_WIDTH - 32}
                     decelerationRate="fast"
                 />
@@ -124,32 +156,32 @@ const ListingCard = ({
                             minimumFontScale={0.75}
                             className="font-semibold underline"
                             style={{
-                                fontSize: listing.address.length <= 30 ? 20 : 16,
-                                lineHeight: listing.address.length <= 30 ? 24 : 20,
+                                fontSize: address.length <= 30 ? 20 : 16,
+                                lineHeight: address.length <= 30 ? 24 : 20,
                                 maxHeight: 48
                             }}
                         >
-                            {listing.address}
+                            {address}
                         </Text>
                     </TouchableOpacity>
                     <Text className="text-[#8CC7C3] text-sm">
-                        {listing.property_type || 'Property'}
+                        {listing?.property_type || 'Property'}
                     </Text>
                 </View>
                 
                 <View className="flex-row justify-between items-center mt-2">
                     <Text className="text-[#54B4AF] text-lg mb-3">
-                        ${listing.list_price?.toLocaleString() || 'Price not available'}
+                        ${listing?.list_price?.toLocaleString() || 'Price not available'}
                     </Text>
 
                     <View className="flex-row gap-4">
-                        <Text>{listing.bedrooms_total}🛏️</Text>
-                        <Text>{listing.bathrooms_total}🚿</Text>
-                        <Text>{(listing.parking_features || []).length}🚗</Text>
+                        <Text>{listing?.bedrooms_total || 0}🛏️</Text>
+                        <Text>{listing?.bathrooms_total || 0}🚿</Text>
+                        <Text>{(listing?.parking_features || []).length}🚗</Text>
                     </View>
                 </View>
 
-                {listing.tags && listing.tags.length > 0 && (
+                {listing?.tags && listing.tags.length > 0 && (
                     <View className="flex-row flex-wrap gap-2">
                         {listing.tags.map((tag, index) => (
                             <View 
@@ -165,5 +197,37 @@ const ListingCard = ({
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    mediaContainer: {
+        width: SCREEN_WIDTH - 32,
+        height: MEDIA_HEIGHT,
+        position: 'relative',
+    },
+    mediaImage: {
+        width: '100%',
+        height: '100%',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+    },
+    videoContainer: {
+        backgroundColor: 'black',
+        justifyContent: 'center',
+        alignItems: 'center',
+        width: '100%',
+        height: '100%',
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+    },
+    watermarkContainer: {
+        position: 'absolute',
+        left: 8,
+        bottom: 8,
+    },
+    watermarkImage: {
+        width: 100,
+        height: 40,
+    }
+});
 
 export default ListingCard;
