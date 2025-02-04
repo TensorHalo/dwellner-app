@@ -37,27 +37,28 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
         const initializeApiService = async () => {
             try {
                 const tokens = await getAuthTokens();
-                if (tokens) {
-                    const service = new ChatApiService(tokens.accessToken);
-                    setApiService(service);
-                    
-                    if (!hasGreetingSentRef.current) {
-                        hasGreetingSentRef.current = true;
-                        sendGreeting(service);
-                    }
-                } else {
-                    console.error('No valid session found');
+                if (!tokens?.accessToken || !tokens?.idToken) {
+                    console.error('Missing required tokens');
                     router.replace('/');
+                    return;
+                }
+    
+                const service = new ChatApiService(tokens.accessToken, tokens.idToken);
+                setApiService(service);
+                
+                if (!hasGreetingSentRef.current) {
+                    hasGreetingSentRef.current = true;
+                    await sendGreeting(service);
                 }
             } catch (error) {
                 console.error('Error initializing API service:', error);
                 router.replace('/');
             }
         };
-
+    
         initializeApiService();
     }, [router]);
-
+    
     const sendGreeting = async (service: ChatApiService) => {
         try {
             console.log('Sending initial greeting...');

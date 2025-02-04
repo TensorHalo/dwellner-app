@@ -2,6 +2,7 @@
 import { ListingData } from '@/types/listingData';
 import { ModelPreference } from '@/types/chatInterface';
 import { ListingsApi } from './ListingsApi';
+import { getAuthTokens } from '@/utils/authTokens';
 
 class ListingsPrefetcher {
     private static instance: ListingsPrefetcher | null = null;
@@ -17,8 +18,19 @@ class ListingsPrefetcher {
         return this.instance;
     }
 
-    initialize(accessToken: string) {
-        this.api = new ListingsApi(accessToken);
+    async initialize(accessToken: string) {
+        try {
+            const tokens = await getAuthTokens();
+            if (!tokens?.accessToken || !tokens?.idToken) {
+                throw new Error('Missing required tokens');
+            }
+            
+            this.api = new ListingsApi(tokens.accessToken, tokens.idToken);
+            console.log('ListingsPrefetcher initialized with tokens');
+        } catch (error) {
+            console.error('Error initializing ListingsPrefetcher:', error);
+            throw error;
+        }
     }
 
     initializeCache(listings: ListingData[]) {
@@ -48,7 +60,14 @@ class ListingsPrefetcher {
         modelPreference: ModelPreference,
         onProgress?: (current: number, total: number) => void
     ): Promise<ListingData[]> {
-        if (!this.api) throw new Error('API not initialized');
+        if (!this.api) {
+            console.log('API not initialized, attempting to initialize...');
+            const tokens = await getAuthTokens();
+            if (!tokens?.accessToken || !tokens?.idToken) {
+                throw new Error('No valid tokens available');
+            }
+            this.api = new ListingsApi(tokens.accessToken, tokens.idToken);
+        }
 
         const uncachedIds = this.getUncachedIds(allIds);
         
@@ -76,6 +95,15 @@ class ListingsPrefetcher {
                 await new Promise(resolve => setTimeout(resolve, 100));
             } catch (error) {
                 console.error(`Error fetching listing ${id}:`, error);
+                // If we get a token error, try to reinitialize the API
+                if (error instanceof Error && 
+                    (error.message.includes('401') || 
+                     error.message.includes('token'))) {
+                    const tokens = await getAuthTokens();
+                    if (tokens?.accessToken && tokens?.idToken) {
+                        this.api = new ListingsApi(tokens.accessToken, tokens.idToken);
+                    }
+                }
             }
         }
 

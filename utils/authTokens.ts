@@ -10,7 +10,10 @@ export interface AuthTokens {
 export const storeAuthTokens = async (tokens: AuthTokens): Promise<void> => {
     try {
         await AsyncStorage.setItem('auth_tokens', JSON.stringify(tokens));
-        console.log('Auth tokens stored successfully');
+        // console.log('==== Stored Tokens ====');
+        // console.log('Access Token:', tokens.accessToken);
+        // console.log('ID Token:', tokens.idToken);
+        // console.log('==== End Stored Tokens ====');
     } catch (error) {
         console.error('Error storing auth tokens:', error);
         throw error;
@@ -20,7 +23,19 @@ export const storeAuthTokens = async (tokens: AuthTokens): Promise<void> => {
 export const getAuthTokens = async (): Promise<AuthTokens | null> => {
     try {
         const tokens = await AsyncStorage.getItem('auth_tokens');
-        return tokens ? JSON.parse(tokens) : null;
+        if (!tokens) {
+            console.log('No auth tokens found in storage');
+            return null;
+        }
+        
+        const parsedTokens = JSON.parse(tokens) as AuthTokens;
+        if (!parsedTokens.idToken) {
+            console.error('Retrieved tokens missing ID token');
+            return null;
+        }
+        
+        console.log('Auth tokens retrieved successfully');
+        return parsedTokens;
     } catch (error) {
         console.error('Error retrieving auth tokens:', error);
         return null;
