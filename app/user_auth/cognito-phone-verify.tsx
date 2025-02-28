@@ -1,14 +1,26 @@
 // @/app/user_auth/cognito-phone-verify.tsx
-import { View, Text, TouchableOpacity, TextInput, Pressable, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
-import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, TextInput, Pressable, KeyboardAvoidingView, Platform, Keyboard, ActivityIndicator } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from '@expo/vector-icons';
-import { initiatePhoneVerification, verifyPhoneCode, resendPhoneCode } from "@/utils/cognitoPhoneVerify";
+import { sendPhoneVerificationCode, verifyPhoneCode } from "@/utils/cognitoPhoneAuth";
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
+// Code Input Component
 const CodeInput = ({ code, setCode, autoFocus, disabled }) => {
     const maxLength = 6;
     const codeArray = code.split('');
+    const inputRef = useRef(null);
+
+    // Focus the text input when the component mounts
+    useEffect(() => {
+        if (autoFocus && inputRef.current) {
+            setTimeout(() => {
+                inputRef.current.focus();
+            }, 100);
+        }
+    }, [autoFocus]);
 
     return (
         <View className="flex-row justify-between mb-8">
@@ -25,6 +37,7 @@ const CodeInput = ({ code, setCode, autoFocus, disabled }) => {
                 </View>
             ))}
             <TextInput
+                ref={inputRef}
                 value={code}
                 onChangeText={(text) => {
                     if (text.length <= maxLength && /^\d*$/.test(text)) {
@@ -32,7 +45,6 @@ const CodeInput = ({ code, setCode, autoFocus, disabled }) => {
                     }
                 }}
                 keyboardType="numeric"
-                autoFocus={autoFocus}
                 maxLength={maxLength}
                 style={{ 
                     position: 'absolute',
@@ -50,27 +62,26 @@ const CognitoPhoneVerify = () => {
     const router = useRouter();
     const { phoneNumber, callingCode } = useLocalSearchParams();
     const [code, setCode] = useState('');
-    const [sessionId, setSessionId] = useState('');
     const [keyboardVisible, setKeyboardVisible] = useState(false);
     const [resendDisabled, setResendDisabled] = useState(false);
     const [countdown, setCountdown] = useState(0);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [initialCodeSent, setInitialCodeSent] = useState(false);
 
-    const fullPhoneNumber = `+${callingCode}${phoneNumber}`;
+    // Format full phone number with + sign and calling code
+    const formattedPhoneNumber = `+${callingCode}${phoneNumber}`.replace(/\D/g, '');
 
     // Send initial verification code on mount
     useEffect(() => {
         const sendInitialCode = async () => {
-            if (phoneNumber && !resendDisabled) {
+            if (formattedPhoneNumber && !initialCodeSent && !resendDisabled) {
                 setLoading(true);
                 try {
-                    console.log('Initiating verification for:', fullPhoneNumber);
-                    const result = await initiatePhoneVerification(fullPhoneNumber);
-                    console.log('Verification initiation result:', result);
-
-                    if (result.success && result.sessionId) {
-                        setSessionId(result.sessionId);
+                    console.log('Sending initial code to:', formattedPhoneNumber);
+                    const result = await sendPhoneVerificationCode(formattedPhoneNumber);
+                    if (result.success) {
+                        setInitialCodeSent(true);
                         setResendDisabled(true);
                         setCountdown(30);
                         setCode('');
@@ -78,8 +89,8 @@ const CognitoPhoneVerify = () => {
                     } else {
                         setError(result.error || 'Failed to send verification code');
                     }
-                } catch (error: any) {
-                    console.error('Error sending code:', error);
+                } catch (error) {
+                    console.error('Error sending initial code:', error);
                     setError('Failed to send verification code');
                 } finally {
                     setLoading(false);
@@ -88,9 +99,9 @@ const CognitoPhoneVerify = () => {
         };
 
         sendInitialCode();
-    }, [phoneNumber, callingCode]);
+    }, [formattedPhoneNumber, initialCodeSent]);
 
-    // Keyboard event listeners
+    // Handle keyboard events
     useEffect(() => {
         const keyboardWillShow = Keyboard.addListener(
             Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
@@ -108,30 +119,7 @@ const CognitoPhoneVerify = () => {
         };
     }, []);
 
-    const handleResend = async () => {
-        if (!resendDisabled && !loading) {
-            setLoading(true);
-            try {
-                const result = await resendPhoneCode(fullPhoneNumber);
-                if (result.success && result.sessionId) {
-                    setSessionId(result.sessionId);
-                    setResendDisabled(true);
-                    setCountdown(30);
-                    setCode('');
-                    setError('');
-                } else {
-                    setError(result.error || 'Failed to resend code');
-                }
-            } catch (error: any) {
-                console.error('Error resending code:', error);
-                setError('Failed to send verification code');
-            } finally {
-                setLoading(false);
-            }
-        }
-    };
-
-    // Countdown timer
+    // Handle resend countdown
     useEffect(() => {
         if (countdown > 0) {
             const timer = setTimeout(() => setCountdown(countdown - 1), 1000);
@@ -148,36 +136,62 @@ const CognitoPhoneVerify = () => {
         }
     }, [code]);
 
-    const handleVerification = async () => {
-        if (code.length === 6 && !loading && sessionId) {
+    const handleResend = async () => {
+        if (!resendDisabled && !loading) {
             setLoading(true);
             try {
-                console.log('Verifying code for:', fullPhoneNumber);
-                const result = await verifyPhoneCode(fullPhoneNumber, code, sessionId);
-                console.log('Verification result:', result);
-
-                if (result.success && result.session) {
-                    // Store tokens in secure storage
-                    await AsyncStorage.setItem('userTokens', JSON.stringify({
-                        accessToken: result.session.accessToken,
-                        idToken: result.session.idToken,
-                        refreshToken: result.session.refreshToken
-                    }));
-
-                    router.push("/user_auth/onboarding");
-                } else {
-                    setError(result.error || 'Invalid code. Please try again.');
+                console.log('Resending code to:', formattedPhoneNumber);
+                const result = await sendPhoneVerificationCode(formattedPhoneNumber);
+                if (result.success) {
+                    setResendDisabled(true);
+                    setCountdown(30);
                     setCode('');
+                    setError('');
+                } else {
+                    setError(result.error || 'Failed to send code. Please try again.');
                 }
-            } catch (error: any) {
-                console.error('Verification error:', error);
-                setError('Verification failed. Please try again.');
-                setCode('');
+            } catch (error) {
+                console.error('Error resending code:', error);
+                setError('Failed to send verification code');
             } finally {
                 setLoading(false);
             }
-        } else if (!sessionId) {
-            setError('Session expired. Please request a new code.');
+        }
+    };
+
+    const handleVerification = async () => {
+        if (code.length === 6 && !loading) {
+            setLoading(true);
+            try {
+                const verifyResult = await verifyPhoneCode(formattedPhoneNumber, code);
+                
+                if (verifyResult.success) {
+                    // If user exists, go directly to home screen
+                    // If new user, go to user info screen
+                    if (verifyResult.userExists) {
+                        console.log('Existing user verified, going to home screen');
+                        router.replace("/camila/home");
+                    } else {
+                        console.log('New user verified, going to user info screen');
+                        router.replace({
+                            pathname: "/user_auth/user-info",
+                            params: {
+                                phoneNumber: formattedPhoneNumber,
+                                phoneVerified: "true",
+                                verificationCode: code
+                            }
+                        });
+                    }
+                } else {
+                    setError(verifyResult.error || 'Invalid code. Please try again.');
+                    setCode('');
+                }
+            } catch (error) {
+                setError('Verification failed. Please try again.');
+                console.error('Verification error:', error);
+            } finally {
+                setLoading(false);
+            }
         }
     };
 
@@ -196,7 +210,7 @@ const CognitoPhoneVerify = () => {
                                 router.back();
                             }
                         }}
-                        className="w-10 h-10 items-center justify-center bg-gray-50 rounded-full"
+                        className="w-10 h-10 items-center justify-center"
                     >
                         <MaterialIcons name="chevron-left" size={32} color="black" />
                     </Pressable>
@@ -204,20 +218,23 @@ const CognitoPhoneVerify = () => {
 
                 {/* Main Content */}
                 <View className="flex-1 px-4">
+                    {/* Icon */}
                     <View className="mt-4 mb-6">
-                        <MaterialIcons name="shield" size={32} color="#666666" />
+                        <MaterialIcons name="smartphone" size={32} color="#666666" />
                     </View>
 
+                    {/* Title and subtitle */}
                     <Text className="text-2xl font-semibold mb-2">
                         Enter code
                     </Text>
                     <Text className="text-gray-500 mb-2">
-                        We sent a verification code to your number
+                        We sent a verification code to your phone
                     </Text>
                     <Text className="text-black mb-8">
-                        {fullPhoneNumber}
+                        +{callingCode} {phoneNumber}
                     </Text>
 
+                    {/* Code Input */}
                     <CodeInput 
                         code={code}
                         setCode={setCode}
@@ -225,6 +242,7 @@ const CognitoPhoneVerify = () => {
                         disabled={loading}
                     />
 
+                    {/* Resend option */}
                     <View className="flex-row items-center justify-start">
                         <Text className="text-gray-500">
                             Didn't receive a code?
@@ -239,11 +257,13 @@ const CognitoPhoneVerify = () => {
                         </TouchableOpacity>
                     </View>
 
+                    {/* Error message */}
                     {error ? (
                         <Text className="text-red-500 text-sm text-center mt-4">
                             {error}
                         </Text>
                     ) : null}
+
                 </View>
 
                 {/* Continue Button */}
@@ -259,9 +279,13 @@ const CognitoPhoneVerify = () => {
                             onPress={handleVerification}
                             disabled={code.length !== 6 || loading}
                         >
-                            <Text className="text-white font-semibold text-base">
-                                {loading ? 'Verifying...' : 'Continue'}
-                            </Text>
+                            {loading ? (
+                                <ActivityIndicator size="small" color="white" />
+                            ) : (
+                                <Text className="text-white font-semibold text-base">
+                                    Verify
+                                </Text>
+                            )}
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>

@@ -9,6 +9,7 @@ import {
 } from "@aws-sdk/lib-dynamodb";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DynamoDBUserRecord, EmailAuthMetadata, UserInfoFormData } from '@/types/user';
+import { getCognitoUserId } from "./cognitoConfig";
 
 const client = new DynamoDBClient({
     region: "us-east-1",
@@ -123,6 +124,8 @@ export const getUserData = async (cognitoId: string): Promise<DynamoDBUserRecord
             return null;
         }
 
+        console.log('Fetching user data for cognitoId:', cognitoId);
+
         const command = new GetCommand({
             TableName: TABLE_NAME,
             Key: {
@@ -131,34 +134,72 @@ export const getUserData = async (cognitoId: string): Promise<DynamoDBUserRecord
             }
         });
 
-        const response = await docClient.send(command);
-        
-        if (!response.Item) {
-            return null;
-        }
+        try {
+            const response = await docClient.send(command);
+            
+            if (!response.Item) {
+                console.log('No user data found for cognitoId:', cognitoId);
+                return null;
+            }
 
-        const item = response.Item;
-        return {
-            cognito_id: item.cognito_id,
-            auth_methods: {
-                email: item.auth_methods.email ? {
-                    ...item.auth_methods.email,
-                    last_email_verification_date: new Date(item.auth_methods.email.last_email_verification_date),
-                    auth_metadata: item.auth_methods.email.auth_metadata
-                } : undefined,
-                phone: item.auth_methods.phone ? {
-                    ...item.auth_methods.phone,
-                    last_phone_verification_date: new Date(item.auth_methods.phone.last_phone_verification_date)
-                } : undefined,
-                google: item.auth_methods.google
-            },
-            profile: {
-                ...item.profile,
-                date_of_birth: parseDateString(item.profile.date_of_birth),
-                registration_date: new Date(item.profile.registration_date)
-            },
-            is_pro: item.is_pro
-        };
+            const item = response.Item;
+            console.log('User data retrieved successfully');
+            
+            // Safely extract all properties with defaults
+            const authMethods = item.auth_methods || {};
+            const emailData = authMethods.email || {};
+            const phoneData = authMethods.phone || {};
+            const googleData = authMethods.google || {};
+            const profile = item.profile || {};
+            
+            return {
+                cognito_id: item.cognito_id,
+                auth_methods: {
+                    email: {
+                        email_address: emailData.email_address || '',
+                        email_verified: emailData.email_verified || false,
+                        last_email_verification_date: emailData.last_email_verification_date ? 
+                            new Date(emailData.last_email_verification_date) : new Date(),
+                        auth_metadata: emailData.auth_metadata || {}
+                    },
+                    phone: phoneData.phone_number ? {
+                        phone_number: phoneData.phone_number,
+                        phone_verified: phoneData.phone_verified || false,
+                        last_phone_verification_date: phoneData.last_phone_verification_date ?
+                            new Date(phoneData.last_phone_verification_date) : new Date()
+                    } : undefined,
+                    google: googleData.google_id ? {
+                        google_id: googleData.google_id,
+                        google_email: googleData.google_email || ''
+                    } : undefined
+                },
+                profile: {
+                    name: profile.name || '',
+                    user_type: profile.user_type || 'Home Seeker',
+                    date_of_birth: profile.date_of_birth ? 
+                        parseDateString(profile.date_of_birth) : new Date(),
+                    registration_date: profile.registration_date ?
+                        new Date(profile.registration_date) : new Date()
+                },
+                is_pro: item.is_pro || false
+            };
+        } catch (error) {
+            // If there's an error with DynamoDB, check for pendingUserData instead
+            console.log('Error fetching from DynamoDB, checking pendingUserData');
+            const pendingDataStr = await AsyncStorage.getItem('pendingUserData');
+            if (pendingDataStr) {
+                try {
+                    const pendingData = JSON.parse(pendingDataStr);
+                    if (pendingData.userData) {
+                        console.log('Returning user data from pendingUserData');
+                        return pendingData.userData;
+                    }
+                } catch (parseError) {
+                    console.error('Error parsing pendingUserData:', parseError);
+                }
+            }
+            throw error; // Re-throw if we couldn't get data from pendingUserData
+        }
     } catch (error) {
         console.error('Error fetching user data from DynamoDB:', error);
         return null;
@@ -246,6 +287,12 @@ export const getUsersByType = async (
 
 export const updateSignInFields = async (cognitoId: string, email: string): Promise<boolean> => {
     try {
+        if (!cognitoId) {
+            console.error('Error: cognitoId is required for updateSignInFields');
+            return false;
+        }
+        
+        console.log('Updating sign-in fields for cognitoId:', cognitoId);
         const now = new Date().toISOString();
         
         const command = new UpdateCommand({
@@ -269,6 +316,7 @@ export const updateSignInFields = async (cognitoId: string, email: string): Prom
         });
 
         await docClient.send(command);
+        console.log('Sign-in fields updated successfully');
         return true;
     } catch (error) {
         console.error('Error updating sign-in fields:', error);
@@ -278,6 +326,12 @@ export const updateSignInFields = async (cognitoId: string, email: string): Prom
 
 export const updatePasswordResetFields = async (cognitoId: string): Promise<boolean> => {
     try {
+        if (!cognitoId) {
+            console.error('Error: cognitoId is required for updatePasswordResetFields');
+            return false;
+        }
+        
+        console.log('Updating password reset fields for cognitoId:', cognitoId);
         const now = new Date().toISOString();
         
         const command = new UpdateCommand({
@@ -299,6 +353,7 @@ export const updatePasswordResetFields = async (cognitoId: string): Promise<bool
         });
 
         await docClient.send(command);
+        console.log('Password reset fields updated successfully');
         return true;
     } catch (error) {
         console.error('Error updating password reset fields:', error);
@@ -308,28 +363,66 @@ export const updatePasswordResetFields = async (cognitoId: string): Promise<bool
 
 export const updateEmailCodeLoginFields = async (cognitoId: string): Promise<boolean> => {
     try {
+        if (!cognitoId) {
+            console.error('Error: cognitoId is required for updateEmailCodeLoginFields');
+            return false;
+        }
+        
+        // Check if this looks like an email rather than a UUID
+        const isEmailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cognitoId);
+        
+        // If it's an email, try to get the actual cognito ID
+        if (isEmailPattern) {
+            try {
+                const actualCognitoId = await getCognitoUserId(cognitoId);
+                if (actualCognitoId) {
+                    console.log(`Converted email ${cognitoId} to actual Cognito ID: ${actualCognitoId}`);
+                    cognitoId = actualCognitoId;
+                } else {
+                    console.error('Could not convert email to Cognito ID');
+                    return false;
+                }
+            } catch (error) {
+                console.error('Error converting email to Cognito ID:', error);
+                return false;
+            }
+        }
+        
+        console.log('Updating email code login fields for cognitoId:', cognitoId);
         const now = new Date().toISOString();
         
-        const command = new UpdateCommand({
-            TableName: TABLE_NAME,
-            Key: {
-                pk: `USER#${cognitoId}`,
-                sk: `PROFILE#${cognitoId}`
-            },
-            UpdateExpression: `
-                SET auth_methods.email.last_email_verification_date = :verificationDate,
-                    auth_methods.email.auth_metadata.last_successful_login = :loginTime,
-                    updated_at = :updateTime
-            `,
-            ExpressionAttributeValues: {
-                ':verificationDate': now,
-                ':loginTime': now,
-                ':updateTime': now
+        try {
+            // Attempt a simple update with the correct fields
+            const updateCommand = new UpdateCommand({
+                TableName: TABLE_NAME,
+                Key: {
+                    pk: `USER#${cognitoId}`,
+                    sk: `PROFILE#${cognitoId}`
+                },
+                UpdateExpression: `
+                    SET auth_methods.email.last_email_verification_date = :verificationDate,
+                        auth_methods.email.auth_metadata.last_successful_login = :loginTime,
+                        updated_at = :updateTime
+                `,
+                ExpressionAttributeValues: {
+                    ':verificationDate': now,
+                    ':loginTime': now,
+                    ':updateTime': now
+                }
+            });
+            
+            try {
+                await docClient.send(updateCommand);
+                console.log('Updated login timestamps successfully');
+                return true;
+            } catch (err) {
+                console.error('Update failed, record might not exist:', err);
+                return false;
             }
-        });
-
-        await docClient.send(command);
-        return true;
+        } catch (error) {
+            console.error('Error in updateEmailCodeLoginFields:', error);
+            return false;
+        }
     } catch (error) {
         console.error('Error updating email code login fields:', error);
         return false;

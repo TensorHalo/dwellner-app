@@ -208,7 +208,7 @@ const CognitoForgotPassword = () => {
                     {/* Logo */}
                     <View className="items-center mt-8 mb-8">
                         <Image 
-                            source={require('@/assets/dwellnerLogo.png')}
+                            source={require('@/assets/dwellnerlogo.png')}
                             style={{ width: 80, height: 80 }}
                             resizeMode="contain"
                         />

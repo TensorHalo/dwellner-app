@@ -1,3 +1,4 @@
+// @/app/camila/home.tsx
 import { View, Text, TouchableOpacity, Animated, Dimensions, StyleSheet, Pressable, Keyboard } from 'react-native';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Stack, useRouter } from 'expo-router';
@@ -8,6 +9,7 @@ import GetProModal from '@/components/get-pro/GetProModal';
 import { updateSignInFields, storeUserData, getUserData, updatePasswordResetFields, updateEmailCodeLoginFields } from '@/utils/dynamodbEmailUtils';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DynamoDBUserRecord, PendingAuthData } from '@/types/user';
+import { getCognitoUserId } from '@/utils/cognitoConfig';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.85;
@@ -70,10 +72,6 @@ const HomeScreen = () => {
 
     const handleUserDataUpdate = useCallback(async () => {
         await fetchUserData();
-    }, []);
-
-    useEffect(() => {
-        fetchUserData();
     }, []);
 
     const handleChatRefresh = useCallback(() => {

@@ -1,4 +1,6 @@
-import { View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
+// @/components/ChatInterface.tsx
+import { View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Keyboard } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useState, useRef, useEffect } from 'react';
 import { Feather as FeatherIcon } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
@@ -11,6 +13,8 @@ import { MessageHandler } from './chat-interface/MessageHandler';
 import { MessageAnimator } from './chat-interface/MessageAnimator';
 import { Message } from './chat-interface/ChatMessage';
 import { ChatHistoryService } from './chat-interface/ChatHistory';
+import PresetPrompts from './chat-interface/PresetPrompts';
+import { getCognitoUserId } from '@/utils/cognitoConfig';
 
 interface ChatInterfaceProps {
     onChatStart: () => void;
@@ -24,6 +28,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
     const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [isShowingResponse, setIsShowingResponse] = useState(false);
     const [apiService, setApiService] = useState<ChatApiService | null>(null);
+    const [showPresetPrompts, setShowPresetPrompts] = useState(true);
     
     const scrollViewRef = useRef<ScrollView>(null);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -32,6 +37,86 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
     const chatHistoryService = useRef<ChatHistoryService>(new ChatHistoryService());
     const hasGreetingSentRef = useRef(false);
     const [hasStartedChat, setHasStartedChat] = useState(false);
+    const [effectiveUserId, setEffectiveUserId] = useState<string>("");
+
+    useEffect(() => {
+        const keyboardDidShowListener = Keyboard.addListener(
+            'keyboardDidShow',
+            () => {
+                scrollToBottom();
+            }
+        );
+
+        const keyboardDidHideListener = Keyboard.addListener(
+            'keyboardDidHide',
+            () => {
+                scrollToBottom();
+            }
+        );
+
+        return () => {
+            keyboardDidShowListener.remove();
+            keyboardDidHideListener.remove();
+        };
+    }, []);
+
+    useEffect(() => {
+        const getEffectiveUserId = async () => {
+            // If prop userId is available, use it
+            if (userId) {
+                console.log('Using provided userId:', userId);
+                setEffectiveUserId(userId);
+                return;
+            }
+            
+            try {
+                // First check for stored userId
+                const storedUserId = await AsyncStorage.getItem('userId');
+                if (storedUserId) {
+                    console.log('Using stored userId:', storedUserId);
+                    setEffectiveUserId(storedUserId);
+                    return;
+                }
+                
+                // Then check pendingUserData
+                const pendingDataStr = await AsyncStorage.getItem('pendingUserData');
+                if (pendingDataStr) {
+                    const pendingData = JSON.parse(pendingDataStr);
+                    // Check if we have a valid Cognito ID (not an email)
+                    if (pendingData.cognito_id && 
+                        !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(pendingData.cognito_id)) {
+                        console.log('Using cognito_id from pendingUserData:', pendingData.cognito_id);
+                        setEffectiveUserId(pendingData.cognito_id);
+                        
+                        // Store for future use
+                        await AsyncStorage.setItem('userId', pendingData.cognito_id);
+                        return;
+                    }
+                    
+                    // If we have an email and it's in pendingData, try to get the cognito ID
+                    if (pendingData.email) {
+                        try {
+                            const cognitoId = await getCognitoUserId(pendingData.email);
+                            if (cognitoId) {
+                                console.log('Retrieved cognito ID from email:', cognitoId);
+                                setEffectiveUserId(cognitoId);
+                                await AsyncStorage.setItem('userId', cognitoId);
+                                return;
+                            }
+                        } catch (error) {
+                            console.error('Error getting cognito ID from email:', error);
+                        }
+                    }
+                }
+                
+                console.log('No effective userId found');
+            } catch (error) {
+                console.error('Error getting effective userId:', error);
+            }
+        };
+        
+        getEffectiveUserId();
+    }, [userId]);
 
     useEffect(() => {
         const initializeApiService = async () => {
@@ -81,6 +166,39 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
             }
         };
     }, []);
+
+    const handlePresetPrompt = async (promptText: string) => {
+        if (!apiService) return;
+
+        setShowPresetPrompts(false);
+        
+        if (!hasStartedChat) {
+            onChatStart();
+            setHasStartedChat(true);
+        }
+
+        const userMessage: ChatMessage = {
+            id: Date.now(),
+            text: promptText,
+            sender: 'user',
+        };
+        setChatMessages(prev => [...prev, userMessage]);
+
+        const loadingMessage: ChatMessage = {
+            id: Date.now() + 1,
+            text: '',
+            sender: 'bot',
+            isLoading: true
+        };
+        setChatMessages(prev => [...prev, loadingMessage]);
+
+        try {
+            const responseData = await apiService.sendMessage(promptText, sessionId);
+            await handleApiResponse(responseData);
+        } catch (error) {
+            console.error('Failed to send preset prompt:', error);
+        }
+    };
 
     const scrollToBottom = (animated = true) => {
         setTimeout(() => {
@@ -156,11 +274,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                 }
             }
 
-            if (userId && userId.trim() !== '') {
+            if (effectiveUserId && effectiveUserId.trim() !== '') {
                 try {
-                    console.log('Saving chat history for user:', userId);
+                    console.log('Saving chat history for user:', effectiveUserId);
                     await chatHistoryService.current.addChatHistory(
-                        userId,
+                        effectiveUserId,
                         sessionId,
                         responseData
                     );
@@ -232,6 +350,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
             return;
         }
 
+        setShowPresetPrompts(false);
+
         if (!hasStartedChat) {
             onChatStart();
             setHasStartedChat(true);
@@ -292,6 +412,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                         />
                     ))}
                 </ScrollView>
+
+                <PresetPrompts 
+                    visible={showPresetPrompts} 
+                    onPromptSelect={handlePresetPrompt}
+                />
 
                 <View className="px-4 pb-6 pt-2">
                     <View className="bg-gray-100 rounded-full px-4 py-2.5 mx-2 mb-6">

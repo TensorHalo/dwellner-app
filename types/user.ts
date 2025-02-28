@@ -46,3 +46,10 @@ export interface PendingAuthData {
   email: string;
   timestamp: string;
 }
+
+export interface PendingAuthDataForPhone {
+  type: 'PHONE_CODE_LOGIN';
+  cognito_id: string;
+  phone_number: string,
+  timestamp: string;
+}

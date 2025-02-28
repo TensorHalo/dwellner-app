@@ -1,15 +1,28 @@
 // @/app/user_auth/cognito-email-code-login.tsx
-import { View, Text, TouchableOpacity, TextInput, Pressable, KeyboardAvoidingView, Platform, Keyboard } from "react-native";
-import React, { useState, useEffect } from "react";
+import { View, Text, TouchableOpacity, TextInput, Pressable, KeyboardAvoidingView, Platform, Keyboard, ActivityIndicator } from "react-native";
+import React, { useState, useEffect, useRef } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from '@expo/vector-icons';
 import { sendLoginVerificationCode, verifyLoginCode } from "@/utils/cognitoOTPAuth";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PendingAuthData } from "@/types/user";
+import { updateEmailCodeLoginFields } from "@/utils/dynamodbEmailUtils";
 
 // Re-use the CodeInput component
 const CodeInput = ({ code, setCode, autoFocus, disabled }) => {
     const maxLength = 6;
     const codeArray = code.split('');
+    const inputRef = useRef(null);
+
+    // Focus the text input when the component mounts
+    useEffect(() => {
+        if (autoFocus && inputRef.current) {
+            setTimeout(() => {
+                inputRef.current.focus();
+            }, 100);
+        }
+    }, [autoFocus]);
 
     return (
         <View className="flex-row justify-between mb-8">
@@ -26,6 +39,7 @@ const CodeInput = ({ code, setCode, autoFocus, disabled }) => {
                 </View>
             ))}
             <TextInput
+                ref={inputRef}
                 value={code}
                 onChangeText={(text) => {
                     if (text.length <= maxLength && /^\d*$/.test(text)) {
@@ -33,7 +47,6 @@ const CodeInput = ({ code, setCode, autoFocus, disabled }) => {
                     }
                 }}
                 keyboardType="numeric"
-                autoFocus={autoFocus}
                 maxLength={maxLength}
                 style={{ 
                     position: 'absolute',
@@ -56,15 +69,17 @@ const EmailCodeLogin = () => {
     const [countdown, setCountdown] = useState(0);
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [initialCodeSent, setInitialCodeSent] = useState(false);
 
     // Send initial verification code on mount
     useEffect(() => {
         const sendInitialCode = async () => {
-            if (email && !resendDisabled) {
+            if (email && !initialCodeSent && !resendDisabled) {
                 setLoading(true);
                 try {
                     const result = await sendLoginVerificationCode(email as string);
                     if (result.success) {
+                        setInitialCodeSent(true);
                         setResendDisabled(true);
                         setCountdown(30);
                         setCode('');
@@ -82,7 +97,7 @@ const EmailCodeLogin = () => {
         };
 
         sendInitialCode();
-    }, [email]);
+    }, [email, initialCodeSent]);
 
     // Handle keyboard events
     useEffect(() => {
@@ -147,6 +162,20 @@ const EmailCodeLogin = () => {
             try {
                 const verifyResult = await verifyLoginCode(email as string, code);
                 if (verifyResult.success) {
+                    // Now that verification is successful, explicitly update the login fields
+                    // try {
+                    //     // Get the stored userId that was just set during verification
+                    //     const userId = await AsyncStorage.getItem('userId');
+                    //     if (userId) {
+                    //         console.log('Explicitly updating DynamoDB login fields for user:', userId);
+                    //         const updateResult = await updateEmailCodeLoginFields(userId);
+                    //         console.log('Explicit DynamoDB update result:', updateResult);
+                    //     }
+                    // } catch (updateError) {
+                    //     console.error('Error in explicit DynamoDB update:', updateError);
+                    //     // Continue despite the error since authentication succeeded
+                    // }
+                    // Navigate to home
                     router.replace("/camila/home");
                 } else {
                     setError(verifyResult.error || 'Invalid code. Please try again.');
@@ -244,9 +273,13 @@ const EmailCodeLogin = () => {
                             onPress={handleVerification}
                             disabled={code.length !== 6 || loading}
                         >
-                            <Text className="text-white font-semibold text-base">
-                                {loading ? 'Verifying...' : 'Continue'}
-                            </Text>
+                            {loading ? (
+                                <ActivityIndicator size="small" color="white" />
+                            ) : (
+                                <Text className="text-white font-semibold text-base">
+                                    Verify
+                                </Text>
+                            )}
                         </TouchableOpacity>
                     </View>
                 </KeyboardAvoidingView>

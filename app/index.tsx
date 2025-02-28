@@ -1,3 +1,4 @@
+// @/app/index.tsx
 import { View, Text, TouchableOpacity, Linking, Image } from "react-native";
 import React, { useState } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -73,19 +74,19 @@ const App = () => {
 
                         <TouchableOpacity 
                             className={`p-4 rounded-lg flex-row items-center justify-center border border-gray-300 ${isPressedPhone ? 'bg-[#5eead4]' : 'bg-white'}`}
-                            // onPress={() => router.push("/user_auth/cognito-phone-auth")}
+                            onPress={() => router.push("/user_auth/cognito-phone-auth")}
                             onPressIn={() => setIsPressedPhone(true)}
                             onPressOut={() => setIsPressedPhone(false)}
                         >
                             <Ionicons name="call" size={20} color="gray" style={{marginRight: 8}} />
-                            <Text className="text-gray-400 font-semibold text-base">
+                            <Text className="text-black font-semibold text-base">
                                 Continue with Phone
                             </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity 
                             className={`p-4 rounded-lg flex-row items-center justify-center border border-gray-300 ${isPressedGoogle ? 'bg-[#5eead4]' : 'bg-white'}`}
-                            // onPress={() => router.push("/user_auth/cognito-google-auth")}
+                            onPress={() => router.push("/user_auth/cognito-google-auth")}
                             onPressIn={() => setIsPressedGoogle(true)}
                             onPressOut={() => setIsPressedGoogle(false)}
                         >
@@ -93,7 +94,7 @@ const App = () => {
                                 source={{ uri: 'https://cdn1.iconfinder.com/data/icons/google-s-logo/150/Google_Icons-09-512.png' }}
                                 style={{ width: 20, height: 20, marginRight: 8, opacity: 0.5 }}
                             />
-                            <Text className="text-gray-400 font-semibold text-base">
+                            <Text className="text-black font-semibold text-base">
                                 Continue with Google
                             </Text>
                         </TouchableOpacity>
