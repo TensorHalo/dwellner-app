@@ -27,13 +27,13 @@ export const getAuthTokens = async (): Promise<AuthTokens | null> => {
             console.log('No auth tokens found in storage');
             return null;
         }
-        
+
         const parsedTokens = JSON.parse(tokens) as AuthTokens;
         if (!parsedTokens.idToken) {
             console.error('Retrieved tokens missing ID token');
             return null;
         }
-        
+
         console.log('Auth tokens retrieved successfully');
         return parsedTokens;
     } catch (error) {

@@ -1,4 +1,4 @@
-// @/app/camila/home.tsx
+// @/app/navigation/camila/home.tsx
 import { View, Text, TouchableOpacity, Animated, Dimensions, StyleSheet, Pressable, Keyboard } from 'react-native';
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Stack, useRouter } from 'expo-router';
@@ -10,6 +10,7 @@ import { updateSignInFields, storeUserData, getUserData, updatePasswordResetFiel
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DynamoDBUserRecord, PendingAuthData } from '@/types/user';
 import { getCognitoUserId } from '@/utils/cognitoConfig';
+import { updateGoogleSignInFields, storeGoogleUserData } from '@/utils/dynamodbGoogleUtils';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SIDEBAR_WIDTH = SCREEN_WIDTH * 0.85;
@@ -48,6 +49,27 @@ const HomeScreen = () => {
                     case 'EMAIL_CODE_LOGIN':
                         success = await updateEmailCodeLoginFields(pendingData.cognito_id);
                         console.log('Email code login fields updated:', success);
+                        break;
+                    case 'GOOGLE_SIGNIN':
+                        // Import this function at the top of the file
+                        // import { updateGoogleSignInFields } from '@/utils/dynamodbGoogleUtils';
+                        success = await updateGoogleSignInFields(
+                            pendingData.cognito_id, 
+                            pendingData.google_id, 
+                            pendingData.email
+                        );
+                        console.log('Google sign-in fields updated:', success);
+                        break;
+                    case 'GOOGLE_SIGNUP':
+                        // Import this function at the top of the file
+                        // import { storeGoogleUserData } from '@/utils/dynamodbGoogleUtils';
+                        if (pendingData.userData) {
+                            success = await storeGoogleUserData(pendingData.userData);
+                            console.log('New Google user data stored:', success);
+                        } else {
+                            console.error('Missing user data for Google signup');
+                            success = false;
+                        }
                         break;
                 }
         

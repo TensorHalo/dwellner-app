@@ -240,7 +240,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
             }
 
             router.push({
-                pathname: '/camila/search-results',
+                pathname: '/navigation/camila/search-results',
                 params: {
                     listingsData: encodeURIComponent(serializedData)
                 }

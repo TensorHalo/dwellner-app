@@ -1,4 +1,4 @@
-// app/camila/view-more.tsx
+// app/navigation/camila/view-more.tsx
 import React, { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, FlatList, ActivityIndicator } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -126,7 +126,7 @@ const ViewMore = () => {
                 className="absolute bottom-40 left-40 transform -translate-x-1/2 bg-black rounded-full py-2 px-4 flex-row items-center justify-center shadow-lg"
                 onPress={() => {
                     router.push({
-                        pathname: '/camila/google-map',
+                        pathname: '/navigation/camila/google-map',
                         params: { 
                             listingsData: encodeURIComponent(JSON.stringify(listings))
                         }

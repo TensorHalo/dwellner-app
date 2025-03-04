@@ -176,7 +176,7 @@ const EmailCodeLogin = () => {
                     //     // Continue despite the error since authentication succeeded
                     // }
                     // Navigate to home
-                    router.replace("/camila/home");
+                    router.replace("/navigation/camila/home");
                 } else {
                     setError(verifyResult.error || 'Invalid code. Please try again.');
                     setCode('');

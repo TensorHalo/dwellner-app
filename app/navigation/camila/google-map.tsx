@@ -1,4 +1,4 @@
-// app/camila/google-map.tsx
+// app/navigation/camila/google-map.tsx
 import React, { useEffect, useState, useRef } from 'react';
 import { 
     View, 

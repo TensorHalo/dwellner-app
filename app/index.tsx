@@ -79,7 +79,7 @@ const App = () => {
                             onPressOut={() => setIsPressedPhone(false)}
                         >
                             <Ionicons name="call" size={20} color="gray" style={{marginRight: 8}} />
-                            <Text className="text-black font-semibold text-base">
+                            <Text className="text-gray-400 font-semibold text-base">
                                 Continue with Phone
                             </Text>
                         </TouchableOpacity>

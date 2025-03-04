@@ -1,4 +1,4 @@
-// @/app/camila/search-results.tsx
+// @/app/navigation/camila/search-results.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, Dimensions, Animated, StyleSheet, BackHandler, Alert, Linking } from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
@@ -289,7 +289,7 @@ const SearchResults = () => {
             if (totalToFetch === 0) {
                 // If all listings are cached, navigate immediately
                 router.push({
-                    pathname: '/camila/view-more',
+                    pathname: '/navigation/camila/view-more',
                     params: { 
                         listingsData: encodeURIComponent(JSON.stringify({
                             cachedListings: currentListings,

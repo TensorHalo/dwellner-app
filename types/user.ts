@@ -6,6 +6,12 @@ export interface EmailAuthMetadata {
   password_last_changed?: string;
 }
 
+export interface GoogleAuthMetadata {
+  last_successful_login?: string;
+  last_failed_attempt?: string;
+  failed_attempts_count?: number;
+}
+
 export interface DynamoDBUserRecord {
   cognito_id: string;
   auth_methods: {
@@ -18,6 +24,8 @@ export interface DynamoDBUserRecord {
       google?: {
           google_id: string;
           google_email: string;
+          last_login_date?: Date;
+          auth_metadata?: GoogleAuthMetadata;
       };
       phone?: {
           phone_number: string;
@@ -40,16 +48,20 @@ export interface UserInfoFormData {
   date_of_birth: Date;
 }
 
+// Modified PendingAuthData to include Google authentication types
 export interface PendingAuthData {
-  type: 'SIGNUP' | 'SIGNIN' | 'PASSWORD_RESET' | 'EMAIL_CODE_LOGIN';
+  type: 'SIGNUP' | 'SIGNIN' | 'PASSWORD_RESET' | 'EMAIL_CODE_LOGIN' | 'GOOGLE_SIGNIN' | 'GOOGLE_SIGNUP';
   cognito_id: string;
   email: string;
   timestamp: string;
+  // Additional fields for Google auth
+  google_id?: string;
+  userData?: DynamoDBUserRecord;
 }
 
 export interface PendingAuthDataForPhone {
   type: 'PHONE_CODE_LOGIN';
   cognito_id: string;
-  phone_number: string,
+  phone_number: string;
   timestamp: string;
 }

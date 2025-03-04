@@ -82,7 +82,7 @@ const CognitoSignIn = () => {
                 };
     
                 await AsyncStorage.setItem('pendingUserData', JSON.stringify(pendingData));
-                router.replace("/camila/home");
+                router.replace("/navigation/camila/home");
             } else {
                 setError(result.error || "Incorrect password. Please try again.");
             }
@@ -131,7 +131,7 @@ const CognitoSignIn = () => {
                     {/* Logo */}
                     <View className="items-center mt-8 mb-8">
                         <Image 
-                            source={require('@/assets/dwellnerLogo.png')}
+                            source={require('@/assets/dwellnerlogo.png')}
                             style={{ width: 80, height: 80 }}
                             resizeMode="contain"
                         />

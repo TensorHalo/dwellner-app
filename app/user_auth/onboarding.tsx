@@ -37,7 +37,7 @@ const OnboardingScreen = () => {
   const handleContinue = async () => {
     try {
       await AsyncStorage.setItem('hasSeenOnboarding', 'true');
-      router.push("/camila/home");
+      router.push("/navigation/camila/home");
     } catch (error) {
       console.error('Error saving onboarding status:', error);
     }

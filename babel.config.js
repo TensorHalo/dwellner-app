@@ -6,6 +6,15 @@ module.exports = function(api) {
       "nativewind/babel",
       'react-native-reanimated/plugin',
       '@babel/plugin-transform-class-static-block',
+      [
+        'module-resolver',
+        {
+          root: ['./app'],
+          alias: {
+            app: './app',
+          },
+        },
+      ],
     ],
   };
 };

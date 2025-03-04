@@ -1,15 +1,17 @@
-// @/app/user_auth/user-info.tsx
+// @/app/user_auth/user-info-google.tsx
 import { View, Text, TouchableOpacity, TextInput, Pressable, KeyboardAvoidingView, Platform, Keyboard, ScrollView, Linking, Image } from "react-native";
 import React, { useState, useEffect } from "react";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { MaterialIcons } from '@expo/vector-icons';
 import { UserInfoFormData } from "@/types/user";
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { extractUserInfoFromIdToken } from '@/utils/cognitoGoogleUtils';
+import { getAuthTokens } from '@/utils/authTokens';
 
 interface RouterParams {
+    googleId?: string;
     email?: string;
-    emailVerified?: string;
-    verificationCode?: string;
 }
 
 const userTypes = [
@@ -20,14 +22,14 @@ const userTypes = [
     'Developer'
 ] as const;
 
-const UserInfoScreen = () => {
+const UserInfoGoogleScreen = () => {
     const router = useRouter();
     const params = useLocalSearchParams<RouterParams>();
     
-    const email = params.email;
-    const emailVerified = params.emailVerified === 'true';
-    const verificationCode = params.verificationCode;
-
+    // These will be passed or retrieved from token
+    const [googleId, setGoogleId] = useState(params.googleId || '');
+    const [email, setEmail] = useState(params.email || '');
+    
     const [keyboardVisible, setKeyboardVisible] = useState(false);
     const [name, setName] = useState("");
     const [userType, setUserType] = useState<"Home Seeker" | "Agent" | "Property Manager" | "Landlord" | "Developer">();
@@ -35,12 +37,41 @@ const UserInfoScreen = () => {
     const [dropdownVisible, setDropdownVisible] = useState(false);
     const [error, setError] = useState("");
 
+    // Fetch user info from token if not passed as params
     useEffect(() => {
-        if (!email || !emailVerified || !verificationCode) {
-            console.error('Missing required params:', { email, emailVerified, verificationCode });
-            router.replace("/user_auth/cognito-email-auth");
-        }
-    }, [email, emailVerified, verificationCode]);
+        const fetchUserInfoFromToken = async () => {
+            if (!googleId || !email) {
+                try {
+                    const tokens = await getAuthTokens();
+                    if (!tokens || !tokens.idToken) {
+                        console.error('No auth tokens found');
+                        router.replace("/user_auth/cognito-google-auth");
+                        return;
+                    }
+                    
+                    const userInfo = extractUserInfoFromIdToken(tokens.idToken);
+                    if (!userInfo) {
+                        console.error('Failed to extract user info from token');
+                        router.replace("/user_auth/cognito-google-auth");
+                        return;
+                    }
+                    
+                    setGoogleId(userInfo.sub);
+                    setEmail(userInfo.email);
+                    
+                    // If name is available from token, pre-fill it
+                    if (userInfo.name) {
+                        setName(userInfo.name);
+                    }
+                } catch (error) {
+                    console.error('Error fetching user info from token:', error);
+                    router.replace("/user_auth/cognito-google-auth");
+                }
+            }
+        };
+        
+        fetchUserInfoFromToken();
+    }, [googleId, email, router]);
 
     useEffect(() => {
         const keyboardWillShow = Keyboard.addListener(
@@ -87,7 +118,7 @@ const UserInfoScreen = () => {
                date.getFullYear() === year;
     };
 
-    const handleContinue = () => {
+    const handleContinue = async () => {
         if (!name.trim()) {
             setError("Please enter your name");
             return;
@@ -110,14 +141,41 @@ const UserInfoScreen = () => {
             date_of_birth: new Date(year, month - 1, day)
         };
 
-        router.push({
-            pathname: "/user_auth/cognito-email-signup",
-            params: {
-                email,
-                verificationCode,
-                userInfo: JSON.stringify(userInfo)
-            }
-        });
+        try {
+            // Store pending user data for processing in home page
+            const now = new Date();
+            const pendingData = {
+                type: 'GOOGLE_SIGNUP',
+                cognito_id: googleId,
+                email: email,
+                google_id: googleId,
+                timestamp: now.toISOString(),
+                userData: {
+                    cognito_id: googleId,
+                    auth_methods: {
+                        google: {
+                            google_id: googleId,
+                            google_email: email
+                        }
+                    },
+                    profile: {
+                        name: userInfo.name,
+                        user_type: userInfo.user_type,
+                        date_of_birth: userInfo.date_of_birth,
+                        registration_date: now
+                    },
+                    is_pro: false
+                }
+            };
+            
+            await AsyncStorage.setItem('pendingUserData', JSON.stringify(pendingData));
+            
+            // Navigate to home page
+            router.replace('/navigation/camila/home');
+        } catch (error) {
+            console.error('Error storing user info:', error);
+            setError("Failed to save your information. Please try again.");
+        }
     };
 
     return (
@@ -209,7 +267,7 @@ const UserInfoScreen = () => {
 
                         {/* Terms and Privacy Policy */}
                         <Text className="text-center text-gray-500 text-sm px-8">
-                            By clicking "Agree", you agree to our{' '}
+                            By clicking "Continue", you agree to our{' '}
                             <Text 
                                 className="text-gray-700 underline"
                                 onPress={() => Linking.openURL('https://dwellner.com/terms')}
@@ -248,4 +306,4 @@ const UserInfoScreen = () => {
     );
 };
 
-export default UserInfoScreen;
+export default UserInfoGoogleScreen;
