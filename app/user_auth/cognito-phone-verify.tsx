@@ -170,7 +170,7 @@ const CognitoPhoneVerify = () => {
                     // If new user, go to user info screen
                     if (verifyResult.userExists) {
                         console.log('Existing user verified, going to home screen');
-                        router.replace("/camila/home");
+                        router.replace("/navigation/camila/home");
                     } else {
                         console.log('New user verified, going to user info screen');
                         router.replace({

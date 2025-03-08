@@ -1,5 +1,4 @@
-// @/components/ChatInterface.tsx
-import { View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Keyboard } from 'react-native';
+import { View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, ScrollView, Keyboard, Dimensions, StyleSheet } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useState, useRef, useEffect } from 'react';
 import { Feather as FeatherIcon } from '@expo/vector-icons';
@@ -15,6 +14,14 @@ import { Message } from './chat-interface/ChatMessage';
 import { ChatHistoryService } from './chat-interface/ChatHistory';
 import PresetPrompts from './chat-interface/PresetPrompts';
 import { getCognitoUserId } from '@/utils/cognitoConfig';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+
+// Get screen dimensions
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+
+// Dynamic sizes based on screen dimensions
+const INPUT_HEIGHT = Math.max(40, Math.min(50, SCREEN_HEIGHT * 0.075));
+const BOTTOM_SPACING = Math.max(-10, Math.min(-20, SCREEN_HEIGHT * 0.012));
 
 interface ChatInterfaceProps {
     onChatStart: () => void;
@@ -29,6 +36,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
     const [isShowingResponse, setIsShowingResponse] = useState(false);
     const [apiService, setApiService] = useState<ChatApiService | null>(null);
     const [showPresetPrompts, setShowPresetPrompts] = useState(true);
+    const [footerHeight, setFooterHeight] = useState(global.FOOTER_HEIGHT || 80);
+    const [keyboardShown, setKeyboardShown] = useState(false);
     
     const scrollViewRef = useRef<ScrollView>(null);
     const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -38,11 +47,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
     const hasGreetingSentRef = useRef(false);
     const [hasStartedChat, setHasStartedChat] = useState(false);
     const [effectiveUserId, setEffectiveUserId] = useState<string>("");
+    
+    // Get safe area insets
+    const insets = useSafeAreaInsets();
+
+    // Calculate bottom padding to account for the footer and safe area
+    const getBottomPadding = () => {
+        return footerHeight + (keyboardShown ? 0 : insets.bottom);
+    };
 
     useEffect(() => {
         const keyboardDidShowListener = Keyboard.addListener(
             'keyboardDidShow',
             () => {
+                setKeyboardShown(true);
                 scrollToBottom();
             }
         );
@@ -50,6 +68,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
         const keyboardDidHideListener = Keyboard.addListener(
             'keyboardDidHide',
             () => {
+                setKeyboardShown(false);
                 scrollToBottom();
             }
         );
@@ -59,6 +78,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
             keyboardDidHideListener.remove();
         };
     }, []);
+
+    useEffect(() => {
+        // Update the footer height if it changes globally
+        if (global.FOOTER_HEIGHT && global.FOOTER_HEIGHT !== footerHeight) {
+            setFooterHeight(global.FOOTER_HEIGHT);
+        }
+    }, [global.FOOTER_HEIGHT]);
 
     useEffect(() => {
         const getEffectiveUserId = async () => {
@@ -396,7 +422,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                     className="flex-1"
                     contentContainerStyle={{
                         padding: 16,
-                        paddingBottom: 20,
+                        paddingBottom: getBottomPadding() + 80, // Add extra padding for input
                     }}
                     keyboardShouldPersistTaps="handled"
                     onContentSizeChange={() => scrollToBottom()}
@@ -416,48 +442,72 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                 <PresetPrompts 
                     visible={showPresetPrompts} 
                     onPromptSelect={handlePresetPrompt}
+                    bottomPadding={getBottomPadding()}
                 />
 
-                <View className="px-4 pb-6 pt-2">
-                    <View className="bg-gray-100 rounded-full px-4 py-2.5 mx-2 mb-6">
-                        <View className="flex-row items-center">
-                            <TouchableOpacity 
-                                onPress={isRecording ? stopRecording : startRecording}
-                                className="pr-3"
-                            >
-                                <FeatherIcon 
-                                    name={isRecording ? "stop-circle" : "mic"} 
-                                    size={24} 
-                                    color={isRecording ? "red" : "black"} 
-                                />
-                            </TouchableOpacity>
-                            
-                            <TextInput
-                                className="flex-1 text-base leading-5"
-                                placeholder="Type your message..."
-                                multiline
-                                value={message}
-                                onChangeText={setMessage}
-                                style={{ textAlignVertical: 'center' }}
+                <View style={[
+                    styles.inputContainer, 
+                    { paddingBottom: insets.bottom + BOTTOM_SPACING, bottom: keyboardShown ? 0 : footerHeight }
+                ]}>
+                    <View style={styles.inputWrapper}>
+                        <TouchableOpacity 
+                            onPress={isRecording ? stopRecording : startRecording}
+                            className="pr-3"
+                        >
+                            <FeatherIcon 
+                                name={isRecording ? "stop-circle" : "mic"} 
+                                size={24} 
+                                color={isRecording ? "red" : "black"} 
                             />
-                            
-                            <TouchableOpacity 
-                                onPress={sendMessage}
-                                className="pl-3"
-                                disabled={!message.trim() || !apiService}
-                            >
-                                <FeatherIcon 
-                                    name="send" 
-                                    size={24} 
-                                    color={message.trim() && apiService ? "#54B4AF" : "#CCCCCC"} 
-                                />
-                            </TouchableOpacity>
-                        </View>
+                        </TouchableOpacity>
+                        
+                        <TextInput
+                            className="flex-1 text-base leading-5"
+                            placeholder="Type your message..."
+                            multiline
+                            value={message}
+                            onChangeText={setMessage}
+                            style={{ textAlignVertical: 'center' }}
+                        />
+                        
+                        <TouchableOpacity 
+                            onPress={sendMessage}
+                            className="pl-3"
+                            disabled={!message.trim() || !apiService}
+                        >
+                            <FeatherIcon 
+                                name="send" 
+                                size={24} 
+                                color={message.trim() && apiService ? "#54B4AF" : "#CCCCCC"} 
+                            />
+                        </TouchableOpacity>
                     </View>
                 </View>
             </View>
         </KeyboardAvoidingView>
     );
 };
+
+const styles = StyleSheet.create({
+    inputContainer: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        paddingHorizontal: 16,
+        paddingTop: 8,
+        backgroundColor: 'white',
+        borderTopWidth: 1,
+        borderTopColor: '#F0F0F0',
+    },
+    inputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#F5F5F5',
+        borderRadius: 25,
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        minHeight: INPUT_HEIGHT,
+    }
+});
 
 export default ChatInterface;

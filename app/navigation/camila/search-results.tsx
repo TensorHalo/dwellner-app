@@ -1,24 +1,40 @@
 // @/app/navigation/camila/search-results.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, Dimensions, Animated, StyleSheet, BackHandler, Alert, Linking } from 'react-native';
+import { 
+    View, 
+    Text, 
+    TouchableOpacity, 
+    Dimensions, 
+    Animated, 
+    StyleSheet, 
+    BackHandler, 
+    Alert, 
+    Linking,
+    ScrollView,
+    StatusBar,
+    Platform
+} from 'react-native';
 import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import { ListingData } from '@/types/listingData';
 import { ModelPreference } from '@/types/chatInterface';
 import SearchFilters from '@/components/SearchFilters';
 import ListingCard from '@/components/ListingCard';
-import NearbyFacilities from '@/components/NearbyFacilities';
 import { ListingsCache } from '@/components/listings/ListingsCache';
 import { ListingsApi } from '@/components/listings/ListingsApi';
 import { getAuthTokens } from '@/utils/authTokens';
 import ListingMap from '@/components/listings/ListingMap';
 import ListingsPrefetcher from '@/components/listings/ListingsPrefetcher';
 import LoadingOverlay from '@/components/listings/LoadingOverlay';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import NearbyFacilitiesGallery from '@/components/NearbyFacilitiesGallery';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 const SearchResults = () => {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { listingsData } = useLocalSearchParams();
     const [currentIndex, setCurrentIndex] = useState(0);
     const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
@@ -30,6 +46,7 @@ const SearchResults = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [modelPreference, setModelPreference] = useState<ModelPreference | null>(null);
     const [showListingCard, setShowListingCard] = useState(false);
+    const [activeTopTab, setActiveTopTab] = useState('Featured');
 
     // Animation refs
     const slideAnim = useRef(new Animated.Value(0)).current;
@@ -39,7 +56,7 @@ const SearchResults = () => {
     // Service refs
     const listingsApiRef = useRef<ListingsApi | null>(null);
     const cache = ListingsCache.getInstance();
-    const MAX_VISIBLE_LISTINGS = 8;
+    const MAX_VISIBLE_LISTINGS = 5; // Changed from 8 to 5
     const currentListing = listings[currentIndex];
     const [isNextListingReady, setIsNextListingReady] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
@@ -62,8 +79,8 @@ const SearchResults = () => {
     useEffect(() => {
         const initApi = async () => {
             const tokens = await getAuthTokens();
-            if (tokens?.accessToken) {
-                listingsApiRef.current = new ListingsApi(tokens.accessToken);
+            if (tokens?.accessToken && tokens?.idToken) {
+                listingsApiRef.current = new ListingsApi(tokens.accessToken, tokens.idToken);
             }
         };
         initApi();
@@ -272,7 +289,7 @@ const SearchResults = () => {
             const prefetcher = ListingsPrefetcher.getInstance();
             
             const tokens = await getAuthTokens();
-            if (!tokens?.accessToken) {
+            if (!tokens?.accessToken || !tokens?.idToken) {
                 throw new Error('No access token available');
             }
     
@@ -354,22 +371,66 @@ const SearchResults = () => {
 
     return (
         <View className="flex-1 bg-gray-100">
+            <StatusBar barStyle="dark-content" />
             <Stack.Screen 
                 options={{
-                    title: "Search result",
-                    headerShadowVisible: false,
-                    headerStyle: { backgroundColor: '#F8F8F8' },
-                    headerLeft: () => (
-                        <TouchableOpacity onPress={handleBackPress} className="pl-4">
-                            <Text><Feather name="arrow-left" size={24} color="black" /></Text>
-                        </TouchableOpacity>
-                    ),
+                    headerShown: false,
                 }}
             />
 
+            {/* Custom Header */}
+            <View style={[
+                styles.headerContainer, 
+                { paddingTop: insets.top > 0 ? insets.top : 12 }
+            ]}>
+                <View className="flex-row items-center px-4">
+                    <TouchableOpacity onPress={handleBackPress} className="mr-4">
+                        <Feather name="arrow-left" size={24} color="black" />
+                    </TouchableOpacity>
+                    
+                    <View className="flex-1 flex-row justify-center">
+                        <TouchableOpacity 
+                            onPress={() => setActiveTopTab('Featured')}
+                            className="px-4"
+                            style={styles.tabButton}
+                        >
+                            <Text className={`text-lg ${activeTopTab === 'Featured' ? 'font-semibold text-[#54B4AF]' : 'text-gray-600'}`}>
+                                Featured
+                            </Text>
+                            {activeTopTab === 'Featured' && (
+                                <View style={styles.activeTabIndicator} />
+                            )}
+                        </TouchableOpacity>
+                        
+                        <TouchableOpacity 
+                            onPress={() => {
+                                setActiveTopTab('View all');
+                                navigateToViewMore();
+                            }}
+                            className="px-4"
+                            style={styles.tabButton}
+                        >
+                            <Text className={`text-lg ${activeTopTab === 'View all' ? 'font-semibold text-[#54B4AF]' : 'text-gray-600'}`}>
+                                View all
+                            </Text>
+                            {activeTopTab === 'View all' && (
+                                <View style={styles.activeTabIndicator} />
+                            )}
+                        </TouchableOpacity>
+                    </View>
+                    
+                    <TouchableOpacity 
+                        onPress={() => setShowFilters(true)}
+                        className="ml-4"
+                    >
+                        <Feather name="sliders" size={24} color="black" />
+                    </TouchableOpacity>
+                </View>
+            </View>
+
             {showListingCard && showMap && (
                 <Animated.View
-                    className="absolute w-full px-4 pb-8"
+                    className="absolute w-full px-4 pb-8 z-20"
                     style={[
                         {
                             bottom: 0,
@@ -416,100 +477,84 @@ const SearchResults = () => {
                     }
                 ]}
             >
-                <View className="items-center mb-1">
+                <ScrollView 
+                    className="flex-1"
+                    contentContainerStyle={{ paddingBottom: 100 }}
+                    showsVerticalScrollIndicator={false}
+                >
+                    {/* Main Listing Card */}
+                    <View className="px-4 pt-4">
+                        <View className="bg-white rounded-3xl overflow-hidden mb-0 scale-100">
+                            <ListingCard
+                                listing={currentListing}
+                                currentMediaIndex={currentMediaIndex}
+                                onMediaIndexChange={setCurrentMediaIndex}
+                                onAddressPress={handleAddressPress}
+                            />
+                        </View>
+                    </View>
+
+                    {/* Nearby Section - Redesigned */}
+                    <View className="px-4 mt-4">
+                        <View className="bg-white rounded-3xl overflow-hidden scale-100">
+                            {/* Nearby Facilities Gallery */}
+                            <NearbyFacilitiesGallery 
+                                listing={currentListing}
+                                activeTab={activeTab}
+                                onTabChange={setActiveTab}
+                            />
+                        </View>
+                    </View>
+                </ScrollView>
+
+                {/* Placeholder for fixed controls - This ensures scrolling content doesn't get hidden behind the controls */}
+                <View style={styles.controlsSpacer} />
+            
+            {/* Fixed Floating Controls */}
+            <View style={[styles.floatingControls, { bottom: Math.max(120, insets.bottom + 90) }]}>
+                <TouchableOpacity 
+                    style={styles.infoButton}
+                    onPress={handleOpenListingUrl}
+                >
+                    <Feather name="info" size={24} color="white" />
+                </TouchableOpacity>
+
+                <TouchableOpacity style={styles.favoriteButton}>
+                    <Feather name="star" size={24} color="black" />
+                </TouchableOpacity>
+
+                <View style={styles.navigationControls}>
                     <TouchableOpacity 
-                        className="bg-white rounded-full py-1.5 px-5"
-                        onPress={() => setShowFilters(true)}
+                        onPress={handlePreviousListing}
+                        disabled={currentIndex === 0}
+                        style={styles.navButton}
                     >
-                        <Text className="text-gray-800 text-sm">View Search Filters</Text>
+                        <Feather 
+                            name="chevron-up" 
+                            size={24} 
+                            color={currentIndex === 0 ? "#CCCCCC" : "black"} 
+                        />
+                    </TouchableOpacity>
+                    
+                    <Text style={styles.paginationText}>
+                        {currentIndex + 1}/{Math.min(MAX_VISIBLE_LISTINGS, cache.getListingIds().length)}
+                    </Text>
+                    
+                    <TouchableOpacity 
+                        onPress={handleNextListing}
+                        disabled={isLoading || currentIndex >= MAX_VISIBLE_LISTINGS - 1}
+                        style={styles.navButton}
+                    >
+                        <Feather 
+                            name="chevron-down" 
+                            size={24} 
+                            color={(isLoading || currentIndex >= MAX_VISIBLE_LISTINGS - 1) ? "#CCCCCC" : "black"} 
+                        />
                     </TouchableOpacity>
                 </View>
-
-                <View className="flex-1 px-4">
-                    <View className="bg-white rounded-3xl overflow-hidden mb-0 scale-95">
-                        <ListingCard
-                            listing={currentListing}
-                            currentMediaIndex={currentMediaIndex}
-                            onMediaIndexChange={setCurrentMediaIndex}
-                            onAddressPress={handleAddressPress}
-                        />
-                    </View>
-
-                    <View className="bg-white rounded-3xl overflow-hidden mt-1 scale-95">
-                        <View className="flex-row justify-around border-b border-gray-100">
-                            {['Restaurant', 'Bar', 'Shop', 'Safety'].map((tab) => (
-                                <TouchableOpacity 
-                                    key={tab}
-                                    className={`py-3 px-4 ${activeTab === tab ? 'border-b-2 border-[#8CC7C3]' : ''}`}
-                                    onPress={() => setActiveTab(tab as 'Restaurant' | 'Bar' | 'Shop' | 'Safety')}
-                                >
-                                    <Text className={`${activeTab === tab ? 'text-[#8CC7C3]' : 'text-gray-600'} text-[15px]`}>
-                                        {tab}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </View>
-                        <View className="p-4">
-                            <View className="flex-row items-start">
-                                <View className="flex-1">
-                                    <NearbyFacilities 
-                                        listing={currentListing}
-                                        activeTab={activeTab as 'Restaurant' | 'Bar' | 'Shop' | 'Safety'}
-                                    />
-                                </View>
-                            </View>
-                        </View>
-                    </View>
-
-                    <View className="flex-row items-center justify-center my-3 px-8">
-                        <TouchableOpacity 
-                            className="bg-white p-3 rounded-full mr-2"
-                            onPress={handleOpenListingUrl}
-                        >
-                            <Feather name="info" size={24} color="black" />
-                        </TouchableOpacity>
-
-                        <View className="bg-white rounded-full flex-row items-center py-2 px-8">
-                            <TouchableOpacity 
-                                onPress={handlePreviousListing}
-                                disabled={currentIndex === 0}
-                            >
-                                <Feather 
-                                    name="chevron-left" 
-                                    size={24} 
-                                    color={currentIndex === 0 ? "#CCCCCC" : "black"} 
-                                />
-                            </TouchableOpacity>
-                            <Text className="mx-6 font-medium">
-                                {currentIndex + 1}/{Math.min(MAX_VISIBLE_LISTINGS, cache.getListingIds().length)}
-                            </Text>
-                            <TouchableOpacity 
-                                onPress={handleNextListing}
-                                disabled={isLoading}
-                            >
-                                <Feather 
-                                    name="chevron-right" 
-                                    size={24} 
-                                    color={isLoading ? "#CCCCCC" : "black"} 
-                                />
-                            </TouchableOpacity>
-                        </View>
-
-                        <TouchableOpacity className="bg-white p-3 rounded-full ml-2">
-                            <Feather name="star" size={24} color="black" />
-                        </TouchableOpacity>
-                    </View>
-
-                    <View className="items-center mb-4">
-                        <TouchableOpacity 
-                            className="bg-[#54B4AF] rounded-xl py-2.5 px-6"
-                            onPress={navigateToViewMore}
-                        >
-                            <Text className="text-white text-base font-medium">View more →</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
+            </View>
             </Animated.View>
+
             {currentListing && (
                 <ListingMap 
                     listing={currentListing}
@@ -517,10 +562,12 @@ const SearchResults = () => {
                     onClose={() => setShowMap(false)}
                 />
             )}
+            
             <LoadingOverlay 
                 visible={isLoading} 
                 progress={loadingProgress} 
             />
+            
             <SearchFilters 
                 visible={showFilters}
                 onDismiss={() => setShowFilters(false)}
@@ -529,5 +576,96 @@ const SearchResults = () => {
         </View>
     );
 };
+
+const styles = StyleSheet.create({
+    headerContainer: {
+        backgroundColor: 'white', 
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#E5E5E5',
+        zIndex: 10,
+    },
+    tabButton: {
+        paddingVertical: 12,
+        position: 'relative',
+        alignItems: 'center',
+    },
+    activeTabIndicator: {
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        height: 3,
+        backgroundColor: '#54B4AF',
+        borderRadius: 3,
+    },
+    floatingControls: {
+        position: 'absolute',
+        right: 16,
+        flexDirection: 'column',
+        alignItems: 'center',
+        zIndex: 10,
+    },
+    infoButton: {
+        backgroundColor: '#54B4AF',
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 6,
+    },
+    favoriteButton: {
+        backgroundColor: 'white',
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 12,
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 6,
+    },
+    navigationControls: {
+        backgroundColor: 'white',
+        borderRadius: 30,
+        paddingVertical: 8,
+        alignItems: 'center',
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.15,
+        shadowRadius: 4,
+        elevation: 6,
+    },
+    navButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 6,
+    },
+    paginationText: {
+        fontSize: 16,
+        fontWeight: '500',
+        marginVertical: 4,
+    },
+    controlsSpacer: {
+        height: 0, // No spacer needed as we're positioning controls higher
+    }
+});
 
 export default SearchResults;

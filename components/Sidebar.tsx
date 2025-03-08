@@ -53,7 +53,7 @@ const Sidebar = ({ onClose, userData, onGetProPress, onUpdateUserData }: Sidebar
                     </TouchableOpacity>
                 </View>
 
-                <View className="px-4 mb-8">
+                <View className="px-4 mb-20">
                     <View className="flex-row items-center px-3 py-2.5 bg-[#F8F8F8] rounded-xl">
                         <View className="w-8 h-8 bg-[#E8F4F4] rounded-lg items-center justify-center">
                             <Text className="text-[#54B4AF] font-medium">
