@@ -31,4 +31,19 @@ export interface ListingData {
         MediaCategory: string;
     }>;
     tags: string[];
+    isRental?: boolean;
+    lot_size_area?: number | null;
+    // Additional Fields
+    originalEntryTimestamp?: string;
+    modificationTimestamp?: string;
+    publicRemarks?: string;
+    heating?: string[];
+    basement?: string[];
+    structureType?: string[];
+    bedroomsBelowGrade?: number;
+    bedroomsAboveGrade?: number;
+    bathroomsPartial?: number;
+    subType?: string;
+    yearBuilt?: number;
+    listAgentKey?: string | null;
 }

@@ -1,281 +1,386 @@
-// @/app/navigation/camila/listing-map.tsx
-import React, { useEffect, useState, useRef } from 'react';
+// @/components/listings/ListingMap.tsx
+import React, { useState, useEffect } from 'react';
 import { 
     View, 
     Text, 
+    StyleSheet, 
+    Dimensions, 
+    Animated, 
     TouchableOpacity,
-    Dimensions,
-    Animated 
+    Platform
 } from 'react-native';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Feather } from '@expo/vector-icons';
-import MapView, { Marker, Region } from 'react-native-maps';
-import { MaterialIcons } from '@expo/vector-icons';
-import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
 import { ListingData } from '@/types/listingData';
-import ListingCard from '@/components/ListingCard';
+import { getAuthTokens } from '@/utils/authTokens';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
-const CARD_HEIGHT = SCREEN_HEIGHT * 0.7;
-const SLIDE_UP_THRESHOLD = 50;
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const MAP_HEIGHT = SCREEN_HEIGHT * 0.5; // Increased height
 
-interface Facility {
+interface NearbyPlace {
     name: string;
-    rating: number | null;
-    distance: number;
-    coordinates: {
-        latitude: number;
-        longitude: number;
+    place_id: string;
+    location: {
+        lat: number;
+        lng: number;
     };
-    type: 'restaurant' | 'bar' | 'store' | 'police';
+    type: 'restaurant' | 'bar' | 'shop';
 }
 
-const PLACE_ICONS = {
-    restaurant: 'restaurant',
-    bar: 'local-bar',
-    store: 'store',
-    police: 'local-police'
-};
+interface ListingMapProps {
+    listing: ListingData;
+    visible: boolean;
+    onClose: () => void;
+}
 
-const PLACE_COLORS = {
-    restaurant: '#FF6B6B',
-    bar: '#4ECDC4',
-    store: '#45B7D1',
-    police: '#2C3E50'
-};
-
-const ListingMapView = () => {
-    const router = useRouter();
-    const { listingData, returnPath } = useLocalSearchParams();
-    const [listing, setListing] = useState<ListingData | null>(null);
-    const [facilities, setFacilities] = useState<Facility[]>([]);
-    const [mapReady, setMapReady] = useState(false);
-    const [currentRegion, setCurrentRegion] = useState<Region | null>(null);
-    const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-    const [isDragging, setIsDragging] = useState(false);
-    const [showCard, setShowCard] = useState(false);
-    const slideAnim = useRef(new Animated.Value(CARD_HEIGHT)).current;
-
+const ListingMap: React.FC<ListingMapProps> = ({ listing, visible, onClose }) => {
+    const [slideAnim] = useState(new Animated.Value(SCREEN_HEIGHT));
+    const [nearbyPlaces, setNearbyPlaces] = useState<NearbyPlace[]>([]);
+    
     useEffect(() => {
-        if (!listingData) return;
-        
-        try {
-            const decodedData = decodeURIComponent(listingData as string);
-            const parsedListing = JSON.parse(decodedData);
-            setListing(parsedListing);
+        if (visible) {
+            Animated.spring(slideAnim, {
+                toValue: 0,
+                useNativeDriver: true,
+                damping: 25,
+                stiffness: 90
+            }).start();
+            
+            if (listing?.coordinates) {
+                fetchNearbyPlaces();
+            }
+        } else {
+            Animated.spring(slideAnim, {
+                toValue: SCREEN_HEIGHT,
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [visible, listing]);
 
-            if (parsedListing.coordinates) {
-                setCurrentRegion({
-                    latitude: parsedListing.coordinates.latitude,
-                    longitude: parsedListing.coordinates.longitude,
-                    latitudeDelta: 0.01,
-                    longitudeDelta: 0.01,
+    const fetchNearbyPlaces = async () => {
+        try {
+            const tokens = await getAuthTokens();
+            if (!tokens?.accessToken || !tokens?.idToken) {
+                console.error('No valid tokens for fetching nearby places');
+                return;
+            }
+            
+            const { latitude, longitude } = listing.coordinates;
+            
+            const apiUrl = `https://api.dwellner.ca/api/v0/listing/details/nearby/${latitude},${longitude}`;
+            
+            const response = await fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${tokens.accessToken}`,
+                    'id-token': tokens.idToken
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            const places: NearbyPlace[] = [];
+            
+            // Add restaurants
+            if (data.response.restaurants) {
+                data.response.restaurants.forEach((place: any) => {
+                    places.push({
+                        name: place.name,
+                        place_id: place.place_id,
+                        location: {
+                            lat: place.geometry.location.lat,
+                            lng: place.geometry.location.lng
+                        },
+                        type: 'restaurant'
+                    });
                 });
             }
-
-            // Fetch nearby facilities
-            fetchNearbyFacilities(parsedListing);
-        } catch (error) {
-            console.error('Error parsing listing data:', error);
-        }
-    }, [listingData]);
-
-    const fetchNearbyFacilities = async (listingData: ListingData) => {
-        const GOOGLE_MAPS_API_KEY = 'AIzaSyA1cRST4odpAAs30pWs5414iJebTTynDpo';
-        const facilityTypes = ['restaurant', 'bar', 'store', 'police'];
-        const allFacilities: Facility[] = [];
-
-        for (const type of facilityTypes) {
-            const radius = type === 'police' ? 5000 : 1000;
-            const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${listingData.coordinates.latitude},${listingData.coordinates.longitude}&radius=${radius}&type=${type}&key=${GOOGLE_MAPS_API_KEY}`;
-
-            try {
-                const response = await fetch(url);
-                const data = await response.json();
-
-                if (data.status === 'OK' && data.results) {
-                    const typedFacilities = data.results.slice(0, 4).map((place: any) => ({
+            
+            // Add bars
+            if (data.response.bars) {
+                data.response.bars.forEach((place: any) => {
+                    places.push({
                         name: place.name,
-                        rating: place.rating || null,
-                        distance: 0,
-                        coordinates: {
-                            latitude: place.geometry.location.lat,
-                            longitude: place.geometry.location.lng
+                        place_id: place.place_id,
+                        location: {
+                            lat: place.geometry.location.lat,
+                            lng: place.geometry.location.lng
                         },
-                        type: type as 'restaurant' | 'bar' | 'store' | 'police'
-                    }));
-
-                    allFacilities.push(...typedFacilities);
-                }
-            } catch (error) {
-                console.error(`Error fetching ${type} facilities:`, error);
+                        type: 'bar'
+                    });
+                });
             }
-        }
-
-        setFacilities(allFacilities);
-    };
-
-    const showListingCard = () => {
-        setShowCard(true);
-        Animated.spring(slideAnim, {
-            toValue: 0,
-            useNativeDriver: true,
-            damping: 15,
-            stiffness: 100
-        }).start();
-    };
-
-    const hideListingCard = () => {
-        Animated.spring(slideAnim, {
-            toValue: CARD_HEIGHT,
-            useNativeDriver: true,
-            damping: 15,
-            stiffness: 100
-        }).start(() => {
-            setShowCard(false);
-        });
-    };
-
-    const handleGesture = (event: any) => {
-        const { translationY } = event.nativeEvent;
-        
-        if (translationY > SLIDE_UP_THRESHOLD) {
-            hideListingCard();
-        }
-        
-        if (event.nativeEvent.state === 1) { // Started
-            setIsDragging(true);
-        } else if (event.nativeEvent.state === 5) { // Ended
-            setIsDragging(false);
+            
+            // Add shops
+            if (data.response.shops) {
+                data.response.shops.forEach((place: any) => {
+                    places.push({
+                        name: place.name,
+                        place_id: place.place_id,
+                        location: {
+                            lat: place.geometry.location.lat,
+                            lng: place.geometry.location.lng
+                        },
+                        type: 'shop'
+                    });
+                });
+            }
+            
+            // Fix for duplicate keys - ensure each marker has a unique key
+            const uniquePlaces = places.reduce((acc: NearbyPlace[], current) => {
+                const isDuplicate = acc.some(item => item.place_id === current.place_id);
+                if (!isDuplicate) {
+                    acc.push(current);
+                }
+                return acc;
+            }, []);
+            
+            setNearbyPlaces(uniquePlaces);
+        } catch (error) {
+            console.error('Error fetching nearby places:', error);
         }
     };
 
-    const handleMapPress = () => {
-        if (!isDragging) {
-            showListingCard();
+    const getMarkerColor = (type: string) => {
+        switch (type) {
+            case 'restaurant':
+                return '#FF6B6B';
+            case 'bar':
+                return '#54B4AF';
+            case 'shop':
+                return '#7F7FFF';
+            default:
+                return '#888888';
         }
     };
 
-    return (
-        <GestureHandlerRootView style={{ flex: 1 }}>
-            <View className="flex-1">
-                <Stack.Screen 
-                    options={{
-                        title: listing?.address || "Location Details",
-                        headerShadowVisible: false,
-                        headerStyle: { backgroundColor: '#F8F8F8' },
-                        headerLeft: () => (
-                            <TouchableOpacity 
-                                onPress={() => {
-                                    if (returnPath) {
-                                        router.push(returnPath as string);
-                                    } else {
-                                        router.back();
-                                    }
-                                }} 
-                                className="pl-4"
-                            >
-                                <Feather name="arrow-left" size={24} color="black" />
-                            </TouchableOpacity>
-                        ),
-                    }}
-                />
-
-                {currentRegion && (
+    return visible ? (
+        <Animated.View 
+            style={[
+                styles.container,
+                { transform: [{ translateY: slideAnim }] }
+            ]}
+        >
+            <View style={styles.header}>
+                <Text style={styles.headerTitle}>Location</Text>
+                <TouchableOpacity 
+                    style={styles.closeButton}
+                    onPress={onClose}
+                >
+                    <Feather name="x" size={24} color="black" />
+                </TouchableOpacity>
+            </View>
+            
+            {listing?.coordinates && (
+                <View style={styles.mapContainer}>
                     <MapView
-                        style={{ flex: 1 }}
-                        initialRegion={currentRegion}
-                        onMapReady={() => setMapReady(true)}
-                        showsUserLocation={false}
-                        onPress={handleMapPress}
+                        provider={PROVIDER_GOOGLE}
+                        style={styles.map}
+                        initialRegion={{
+                            latitude: listing.coordinates.latitude,
+                            longitude: listing.coordinates.longitude,
+                            latitudeDelta: 0.01,
+                            longitudeDelta: 0.01,
+                        }}
                     >
                         {/* Main listing marker */}
-                        {listing && (
-                            <Marker
-                                coordinate={{
-                                    latitude: listing.coordinates.latitude,
-                                    longitude: listing.coordinates.longitude
-                                }}
-                                onPress={showListingCard}
-                            >
-                                <View className="bg-white rounded-2xl px-3 py-2 shadow-lg">
-                                    <Text className="font-medium text-base">
-                                        ${listing.list_price?.toLocaleString()}
-                                    </Text>
+                        <Marker
+                            key="main-listing"
+                            coordinate={{
+                                latitude: listing.coordinates.latitude,
+                                longitude: listing.coordinates.longitude,
+                            }}
+                            pinColor="red"
+                            title={listing.address}
+                        >
+                            <View style={styles.mainMarkerContainer}>
+                                <View style={styles.mainMarker}>
+                                    <Feather name="home" size={18} color="white" />
                                 </View>
-                            </Marker>
-                        )}
-
-                        {/* Facility markers */}
-                        {facilities.map((facility, index) => (
+                                <View style={styles.mainMarkerTriangle} />
+                            </View>
+                        </Marker>
+                        
+                        {/* Price bubble */}
+                        <Marker
+                            key="price-bubble"
+                            coordinate={{
+                                latitude: listing.coordinates.latitude,
+                                longitude: listing.coordinates.longitude,
+                            }}
+                            anchor={{ x: 0.5, y: 1.5 }}
+                        >
+                            <View style={styles.priceBubble}>
+                                <Text style={styles.priceText}>
+                                    ${Math.round(listing.list_price).toLocaleString()}
+                                </Text>
+                            </View>
+                        </Marker>
+                        
+                        {/* Nearby places markers */}
+                        {nearbyPlaces.map((place, index) => (
                             <Marker
-                                key={`${facility.type}-${index}`}
-                                coordinate={facility.coordinates}
+                                key={`${place.place_id}-${index}`} // Ensure unique keys
+                                coordinate={{
+                                    latitude: place.location.lat,
+                                    longitude: place.location.lng,
+                                }}
+                                title={place.name}
                             >
-                                <View 
-                                    style={{ 
-                                        backgroundColor: PLACE_COLORS[facility.type],
-                                        padding: 8,
-                                        borderRadius: 20,
-                                    }}
-                                >
-                                    <MaterialIcons 
-                                        name={PLACE_ICONS[facility.type]} 
-                                        size={20} 
+                                <View style={[styles.placeMarker, { backgroundColor: getMarkerColor(place.type) }]}>
+                                    <Feather 
+                                        name={
+                                            place.type === 'restaurant' ? 'utensils' : 
+                                            place.type === 'bar' ? 'wine' : 'shopping-bag'
+                                        } 
+                                        size={16} 
                                         color="white" 
                                     />
                                 </View>
                             </Marker>
                         ))}
                     </MapView>
-                )}
-
-                <View className="absolute bottom-12 left-0 right-0 flex-row justify-center">
-                    <View className="bg-white rounded-full py-3 px-8 shadow-xl">
-                        <Text className="font-semibold text-base">
-                            {facilities.length} nearby places
-                        </Text>
-                    </View>
                 </View>
-
-                {listing && (
-                    <PanGestureHandler onGestureEvent={handleGesture}>
-                        <Animated.View
-                            className="absolute w-full px-4 pb-8"
-                            style={[
-                                {
-                                    bottom: 0,
-                                    transform: [{ translateY: slideAnim }],
-                                    maxHeight: CARD_HEIGHT,
-                                    shadowColor: "#000",
-                                    shadowOffset: {
-                                        width: 0,
-                                        height: -2,
-                                    },
-                                    shadowOpacity: 0.25,
-                                    shadowRadius: 3.84,
-                                    elevation: 5,
-                                }
-                            ]}
-                        >
-                            <View className="w-full items-center py-2">
-                                <View className="w-10 h-1 rounded-full bg-gray-300" />
-                            </View>
-                            
-                            <ListingCard 
-                                listing={listing}
-                                showActions={true}
-                                currentMediaIndex={currentMediaIndex}
-                                onMediaIndexChange={setCurrentMediaIndex}
-                                onClose={hideListingCard}
-                                onFavorite={() => {/* Handle favorite */}}
-                            />
-                        </Animated.View>
-                    </PanGestureHandler>
-                )}
-            </View>
-        </GestureHandlerRootView>
-    );
+            )}
+        </Animated.View>
+    ) : null;
 };
 
-export default ListingMapView;
+const styles = StyleSheet.create({
+    container: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        backgroundColor: 'white',
+        zIndex: 1000,
+    },
+    header: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 16,
+        paddingVertical: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#EFEFEF',
+    },
+    headerTitle: {
+        fontSize: 24,
+        fontWeight: '500',
+        color: '#54B4AF',
+    },
+    closeButton: {
+        padding: 8,
+    },
+    mapContainer: {
+        height: MAP_HEIGHT,
+        width: SCREEN_WIDTH,
+        overflow: 'hidden',
+    },
+    map: {
+        width: '100%',
+        height: '100%',
+    },
+    mainMarkerContainer: {
+        alignItems: 'center',
+    },
+    mainMarker: {
+        width: 34,
+        height: 34,
+        borderRadius: 17,
+        backgroundColor: '#E73C33',
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'white',
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    mainMarkerTriangle: {
+        width: 0,
+        height: 0,
+        backgroundColor: 'transparent',
+        borderStyle: 'solid',
+        borderLeftWidth: 8,
+        borderRightWidth: 8,
+        borderBottomWidth: 0,
+        borderTopWidth: 8,
+        borderLeftColor: 'transparent',
+        borderRightColor: 'transparent',
+        borderTopColor: '#E73C33',
+        marginTop: -1,
+    },
+    priceBubble: {
+        backgroundColor: 'white',
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 20,
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    priceText: {
+        fontWeight: 'bold',
+        fontSize: 16,
+        color: 'black',
+    },
+    placeMarker: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
+        justifyContent: 'center',
+        alignItems: 'center',
+        borderWidth: 2,
+        borderColor: 'white',
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 3,
+    },
+    nearbyCountContainer: {
+        position: 'absolute',
+        bottom: 20,
+        alignSelf: 'center',
+        backgroundColor: 'white',
+        paddingHorizontal: 16,
+        paddingVertical: 8,
+        borderRadius: 20,
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    nearbyCountText: {
+        fontWeight: '500',
+        fontSize: 16,
+        color: '#333',
+    },
+});
+
+export default ListingMap;

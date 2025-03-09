@@ -25,26 +25,40 @@ export class ListingsCache {
         this.clearCache();
         this.listingIds = allListingIds;
         this.modelPreference = preference;
-        // Use ListingKey for caching
+        
+        console.log('Initializing cache with first listing fields:', {
+            listing_id: firstListing.listing_id,
+            address: firstListing.address,
+            listAgentKey: firstListing.listAgentKey
+        });
+        
+        // Store the listing exactly as received - no modifications
         const listingKey = firstListing.listing_id.replace('C', '');
         this.cachedListings.set(listingKey, firstListing);
-        console.log('Cache initialized with:', {
-            firstListingId: listingKey,
-            totalIds: allListingIds.length,
-            modelPreference: preference
-        });
     }
 
     cacheListing(listing: ListingData) {
         if (!listing?.listing_id) return;
+        
+        // Log the agent key when caching a listing
+        console.log('Caching listing with agent key:', listing.listAgentKey);
+        
         // Convert ListingId to ListingKey format
         const listingKey = listing.listing_id.replace('C', '');
         this.cachedListings.set(listingKey, listing);
-        console.log('Cached listing:', listingKey);
     }
 
     getListing(listingId: string): ListingData | null {
-        return this.cachedListings.get(listingId) || null;
+        const listing = this.cachedListings.get(listingId);
+        
+        // Log when retrieving a listing
+        if (listing) {
+            console.log('Retrieved listing from cache, agent key:', listing.listAgentKey);
+        } else {
+            console.log('Listing not found in cache:', listingId);
+        }
+        
+        return listing || null;
     }
 
     getListingIds(): string[] {

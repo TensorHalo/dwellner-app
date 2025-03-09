@@ -1,4 +1,4 @@
-// @/components/ListingCard.tsx
+// @/components/ListingCardWithNoTags.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { 
     View, 
@@ -21,7 +21,7 @@ const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const MEDIA_HEIGHT = 200;
 
-interface ListingCardProps {
+interface ListingCardWithNoTagsProps {
     listing: ListingData;
     containerStyle?: object;
     showActions?: boolean;
@@ -32,7 +32,7 @@ interface ListingCardProps {
     onAddressPress?: () => void;
 }
 
-const ListingCard = ({ 
+const ListingCardWithNoTags = ({ 
     listing, 
     containerStyle = {}, 
     showActions = false,
@@ -41,7 +41,7 @@ const ListingCard = ({
     onClose,
     onFavorite,
     onAddressPress
-}: ListingCardProps) => {
+}: ListingCardWithNoTagsProps) => {
     const mediaItems = listing.media || [];
     const address = listing?.address || 'Address not available';
     
@@ -211,7 +211,6 @@ const ListingCard = ({
             );
         }
 
-        const isLoading = imageStates[item?.MediaURL]?.loading;
         const hasError = imageStates[item?.MediaURL]?.error;
 
         return (
@@ -355,18 +354,18 @@ const ListingCard = ({
                 {/* Top row with address and price/type */}
                 <View style={styles.headerContainer}>
                     {/* Address section with touchable link */}
-                    {/* <TouchableOpacity 
+                    <TouchableOpacity 
                         onPress={onAddressPress}
                         style={styles.addressContainer}
                         activeOpacity={0.7}
-                    > */}
-                    <Text 
-                        numberOfLines={2}
-                        className="text-black font-bold text-lg"
                     >
-                        {address}
-                    </Text>
-                    {/* </TouchableOpacity> */}
+                        <Text 
+                            numberOfLines={2}
+                            className="text-black font-bold text-lg underline"
+                        >
+                            {address}
+                        </Text>
+                    </TouchableOpacity>
                     
                     {/* Price and type section */}
                     <View style={styles.priceTypeContainer}>
@@ -391,20 +390,6 @@ const ListingCard = ({
                     <Text style={styles.squareFootageText}>
                         {listing.lot_size_area.toLocaleString()} square feet
                     </Text>
-                )}
-
-                {/* Tags section */}
-                {listing?.tags && listing.tags.length > 0 && (
-                    <View className="flex-row flex-wrap gap-2 mt-3">
-                        {listing.tags.map((tag, index) => (
-                            <View 
-                                key={index} 
-                                className="bg-gray-100 rounded-full px-3 py-1"
-                            >
-                                <Text className="text-gray-600">{tag}</Text>
-                            </View>
-                        ))}
-                    </View>
                 )}
             </View>
             
@@ -526,27 +511,27 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: 0,
+        marginBottom: 10,
     },
     addressContainer: {
         flex: 1,
-        paddingRight: 12,
+        paddingRight: 8,
     },
     priceTypeContainer: {
         alignItems: 'flex-end',
     },
     priceText: {
-        fontSize: 14,
+        fontSize: 16,
         fontWeight: 'bold',
         color: '#000',
         marginBottom: 2,
     },
     propertyTypeText: {
-        fontSize: 14,
+        fontSize: 13,
         color: '#666',
     },
     amenitiesContainer: {
-        marginBottom: 4,
+        marginBottom: 6,
     },
     amenitiesText: {
         fontSize: 14,
@@ -555,7 +540,7 @@ const styles = StyleSheet.create({
     squareFootageText: {
         fontSize: 14,
         color: '#666',
-        marginBottom: 6,
+        marginBottom: 4,
     },
     // Gallery Modal Styles
     galleryModalContainer: {
@@ -604,4 +589,4 @@ const styles = StyleSheet.create({
     },
 });
 
-export default ListingCard;
+export default ListingCardWithNoTags;

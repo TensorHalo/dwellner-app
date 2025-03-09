@@ -1,10 +1,9 @@
-// @/components/listings/ListingsApi.ts
+// @/components/listings/ListingsViewAllApi.ts
 import { ListingData } from "@/types/listingData";
-import { ModelPreference } from "@/types/chatInterface";
 import { getAuthTokens } from "@/utils/authTokens";
 
-export class ListingsApi {
-    private static API_ENDPOINT = 'https://api.dwellner.ca/api/v0/listing_detail';
+export class ListingsViewAllApi {
+    private static API_ENDPOINT = 'https://api.dwellner.ca/api/v0/view_all';
     private accessToken: string;
     private idToken: string;
 
@@ -13,12 +12,9 @@ export class ListingsApi {
         this.idToken = idToken;
     }
 
-    async fetchListingDetail(
-        listingId: string, 
-        preferences: ModelPreference
-    ): Promise<ListingData> {
+    async fetchAllListings(listingIds: string[]): Promise<ListingData[]> {
         try {
-            const response = await fetch(ListingsApi.API_ENDPOINT, {
+            const response = await fetch(ListingsViewAllApi.API_ENDPOINT, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -26,8 +22,7 @@ export class ListingsApi {
                     'id-token': this.idToken
                 },
                 body: JSON.stringify({
-                    listing_id: listingId,
-                    preferences: JSON.stringify(preferences)
+                    listing_ids: listingIds
                 })
             });
 
@@ -40,7 +35,7 @@ export class ListingsApi {
                     if (tokens?.accessToken && tokens?.idToken) {
                         this.accessToken = tokens.accessToken;
                         this.idToken = tokens.idToken;
-                        return this.fetchListingDetail(listingId, preferences);
+                        return this.fetchAllListings(listingIds);
                     }
                 }
                 
@@ -48,9 +43,13 @@ export class ListingsApi {
             }
 
             const data = await response.json();
-            return this.transformResponseToListingData(data.response);
+            if (!data.response || !Array.isArray(data.response)) {
+                throw new Error('Invalid response format');
+            }
+
+            return data.response.map((item: any) => this.transformResponseToListingData(item));
         } catch (error) {
-            console.error('Error fetching listing detail:', error);
+            console.error('Error fetching all listings:', error);
             throw error;
         }
     }
@@ -79,48 +78,18 @@ export class ListingsApi {
             photos_count: response.PhotosCount || 0,
             listing_url: response.ListingURL || '',
             media: Array.isArray(response.Media) ? response.Media : [],
-            tags: Array.isArray(response.tags) ? response.tags : [],
+            tags: [], // No tags in view_all API response
             isRental: isRental,
-            lot_size_area: response.LotSizeArea || null,
-            // New fields
-            originalEntryTimestamp: response.OriginalEntryTimestamp,
-            modificationTimestamp: response.ModificationTimestamp,
-            publicRemarks: response.PublicRemarks,
-            heating: this.parseJsonString(response.Heating),
-            basement: this.parseJsonString(response.Basement),
-            structureType: this.parseJsonString(response.StructureType),
-            bedroomsBelowGrade: response.BedroomsBelowGrade,
-            bedroomsAboveGrade: response.BedroomsAboveGrade,
-            bathroomsPartial: response.BathroomsPartial,
-            subType: response.PropertySubType,
-            yearBuilt: response.YearBuilt,
-            listAgentKey: response.ListAgentKey || null
+            lot_size_area: response.LotSizeArea || null
         };
     }
 
     private parseJsonString(value: string | any[]): any[] {
         if (Array.isArray(value)) return value;
-        if (typeof value === 'string') {
-            try {
-                const parsed = JSON.parse(value);
-                return Array.isArray(parsed) ? parsed : [];
-            } catch {
-                return [];
-            }
+        try {
+            return JSON.parse(value);
+        } catch {
+            return [];
         }
-        return [];
-    }
-    
-    private parseStructureType(value: string | any[]): string {
-        if (Array.isArray(value)) return value[0] || 'Unknown';
-        if (typeof value === 'string') {
-            try {
-                const parsed = JSON.parse(value);
-                return Array.isArray(parsed) ? parsed[0] : 'Unknown';
-            } catch {
-                return value || 'Unknown';
-            }
-        }
-        return 'Unknown';
     }
 }

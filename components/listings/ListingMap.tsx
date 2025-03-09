@@ -1,344 +1,356 @@
 // @/components/listings/ListingMap.tsx
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { 
     View, 
     Text, 
-    Animated, 
-    Dimensions,
     TouchableOpacity,
-    ActivityIndicator,
     StyleSheet,
-    Platform
+    Dimensions
 } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
+import MapView, { Marker, Region } from 'react-native-maps';
 import { MaterialIcons } from '@expo/vector-icons';
 import { ListingData } from '@/types/listingData';
-import ListingCard from '../ListingCard';
+import { getAuthTokens } from '@/utils/authTokens';
 
-const SCREEN_HEIGHT = Dimensions.get('window').height;
-const CARD_HEIGHT = SCREEN_HEIGHT * 0.7;
-const GOOGLE_MAPS_API_KEY = 'AIzaSyA1cRST4odpAAs30pWs5414iJebTTynDpo';
-
-interface Facility {
-    name: string;
-    coordinates: {
-        latitude: number;
-        longitude: number;
-    };
-    type: 'restaurant' | 'bar' | 'store' | 'police';
-}
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 interface ListingMapProps {
     listing: ListingData;
     visible: boolean;
-    onClose: () => void;
+    onClose?: () => void;
+    showHeader?: boolean;
 }
 
-const FACILITY_TYPES = {
-    restaurant: { icon: "restaurant", color: '#FF6B6B' },
-    bar: { icon: "local-bar", color: '#4ECDC4' },
-    store: { icon: "storefront", color: '#45B7D1' },
-    police: { icon: "local-police", color: '#2C3E50' }
-} as const;
-
-const ListingMap = ({ listing, visible, onClose }: ListingMapProps) => {
-    const [facilities, setFacilities] = useState<Facility[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [showListingCard, setShowListingCard] = useState(false);
-    const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-    
-    const slideAnim = useRef(new Animated.Value(SCREEN_HEIGHT)).current;
-    const cardSlideAnim = useRef(new Animated.Value(CARD_HEIGHT)).current;
-    const mapRef = useRef(null);
-
-    const initialRegion = {
-        latitude: listing.coordinates.latitude,
-        longitude: listing.coordinates.longitude,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
+interface Facility {
+    name: string;
+    rating: number | null;
+    coordinates: {
+        latitude: number;
+        longitude: number;
     };
+    type: 'restaurant' | 'bar' | 'shop' | 'safety';
+    placeId: string;
+}
 
-    const fetchNearbyFacilities = useCallback(async () => {
-        setLoading(true);
-        try {
-            const facilityTypes = ['restaurant', 'bar', 'store', 'police'] as const;
-            const allFacilities: Facility[] = [];
+const PLACE_ICONS = {
+    restaurant: 'restaurant',
+    bar: 'local-bar',
+    shop: 'store',
+    safety: 'local-police'
+};
 
-            for (const type of facilityTypes) {
-                const response = await fetch(
-                    `https://maps.googleapis.com/maps/api/place/nearbysearch/json?` +
-                    `location=${listing.coordinates.latitude},${listing.coordinates.longitude}&` +
-                    `radius=${type === 'police' ? 5000 : 1000}&` +
-                    `type=${type}&` +
-                    `key=${GOOGLE_MAPS_API_KEY}`
-                );
+const PLACE_COLORS = {
+    restaurant: '#FF6B6B',
+    bar: '#4ECDC4',
+    shop: '#45B7D1',
+    safety: '#2C3E50'
+};
 
-                const data = await response.json();
-                if (data.status === 'OK' && data.results) {
-                    const typeFacilities = data.results.slice(0, 5).map(place => ({
-                        name: place.name,
-                        coordinates: {
-                            latitude: place.geometry.location.lat,
-                            longitude: place.geometry.location.lng
-                        },
-                        type
-                    }));
-                    allFacilities.push(...typeFacilities);
-                }
-            }
-            setFacilities(allFacilities);
-        } catch (error) {
-            console.error('Error fetching facilities:', error);
-        } finally {
-            setLoading(false);
-        }
-    }, [listing.coordinates]);
+const ListingMap: React.FC<ListingMapProps> = ({ 
+    listing, 
+    visible, 
+    onClose,
+    showHeader = false
+}) => {
+    const [facilities, setFacilities] = useState<Facility[]>([]);
+    const [mapReady, setMapReady] = useState(false);
+    const [currentRegion, setCurrentRegion] = useState<Region | null>(null);
+    const [accessToken, setAccessToken] = useState<string | null>(null);
+    const [idToken, setIdToken] = useState<string | null>(null);
+    const isMounted = useRef(true);
 
     useEffect(() => {
-        if (visible) {
-            Animated.spring(slideAnim, {
-                toValue: 0,
-                useNativeDriver: true
-            }).start();
+        return () => {
+            isMounted.current = false;
+        };
+    }, []);
+
+    // Initialize tokens
+    useEffect(() => {
+        const initTokens = async () => {
+            try {
+                const tokens = await getAuthTokens();
+                if (tokens?.accessToken && tokens?.idToken && isMounted.current) {
+                    setAccessToken(tokens.accessToken);
+                    setIdToken(tokens.idToken);
+                }
+            } catch (error) {
+                console.error('Error initializing tokens:', error);
+            }
+        };
+        
+        initTokens();
+    }, []);
+
+    useEffect(() => {
+        if (listing.coordinates) {
+            setCurrentRegion({
+                latitude: listing.coordinates.latitude,
+                longitude: listing.coordinates.longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+            });
+        }
+    }, [listing]);
+
+    useEffect(() => {
+        if (visible && accessToken && idToken && listing.coordinates) {
             fetchNearbyFacilities();
         }
-    }, [visible, fetchNearbyFacilities]);
+    }, [visible, accessToken, idToken, listing.coordinates]);
 
-    const hideMap = () => {
-        hideListingCard();
-        Animated.spring(slideAnim, {
-            toValue: SCREEN_HEIGHT,
-            useNativeDriver: true
-        }).start(() => onClose());
+    const fetchNearbyFacilities = async () => {
+        if (!listing.coordinates || !accessToken || !idToken) {
+            return;
+        }
+
+        try {
+            const { latitude, longitude } = listing.coordinates;
+            
+            const apiUrl = `https://api.dwellner.ca/api/v0/listing/details/nearby/${latitude},${longitude}`;
+            
+            const response = await fetch(apiUrl, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${accessToken}`,
+                    'id-token': idToken
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            
+            // Combine all facility types into one array
+            let allFacilities: Facility[] = [];
+            
+            if (data.response.restaurants) {
+                const restaurants = data.response.restaurants.map((place, index) => ({
+                    name: place.name,
+                    rating: place.rating || null,
+                    coordinates: {
+                        latitude: place.geometry.location.lat,
+                        longitude: place.geometry.location.lng
+                    },
+                    type: 'restaurant' as const,
+                    placeId: `restaurant-${place.place_id}-${index}` // Ensure uniqueness with type prefix and index
+                }));
+                allFacilities = [...allFacilities, ...restaurants];
+            }
+            
+            if (data.response.bars) {
+                const bars = data.response.bars.map((place, index) => ({
+                    name: place.name,
+                    rating: place.rating || null,
+                    coordinates: {
+                        latitude: place.geometry.location.lat,
+                        longitude: place.geometry.location.lng
+                    },
+                    type: 'bar' as const,
+                    placeId: `bar-${place.place_id}-${index}` // Ensure uniqueness with type prefix and index
+                }));
+                allFacilities = [...allFacilities, ...bars];
+            }
+            
+            if (data.response.shops) {
+                const shops = data.response.shops.map((place, index) => ({
+                    name: place.name,
+                    rating: place.rating || null,
+                    coordinates: {
+                        latitude: place.geometry.location.lat,
+                        longitude: place.geometry.location.lng
+                    },
+                    type: 'shop' as const,
+                    placeId: `shop-${place.place_id}-${index}` // Ensure uniqueness with type prefix and index
+                }));
+                allFacilities = [...allFacilities, ...shops];
+            }
+            
+            if (data.response.safety) {
+                const safety = data.response.safety.map((place, index) => ({
+                    name: place.name,
+                    rating: place.rating || null,
+                    coordinates: {
+                        latitude: place.geometry.location.lat,
+                        longitude: place.geometry.location.lng
+                    },
+                    type: 'safety' as const,
+                    placeId: `safety-${place.place_id}-${index}` // Ensure uniqueness with type prefix and index
+                }));
+                allFacilities = [...allFacilities, ...safety];
+            }
+
+            if (isMounted.current) {
+                setFacilities(allFacilities);
+            }
+        } catch (error) {
+            console.error('Error fetching nearby facilities:', error);
+        }
     };
 
-    const showListingDetails = () => {
-        setShowListingCard(true);
-        Animated.spring(cardSlideAnim, {
-            toValue: 0,
-            useNativeDriver: true,
-            damping: 15,
-            stiffness: 100
-        }).start();
-    };
-
-    const hideListingCard = () => {
-        Animated.spring(cardSlideAnim, {
-            toValue: CARD_HEIGHT,
-            useNativeDriver: true,
-            damping: 15,
-            stiffness: 100
-        }).start(() => setShowListingCard(false));
-    };
-
-    if (!visible) return null;
+    if (!visible || !currentRegion) return null;
 
     return (
-        <GestureHandlerRootView style={styles.container}>
-            <PanGestureHandler
-                onGestureEvent={({ nativeEvent }) => {
-                    if (nativeEvent.translationY > 50) {
-                        hideMap();
-                    }
-                }}
+        <View style={styles.container}>
+            {showHeader && (
+                <View style={styles.header}>
+                    <Text style={styles.headerTitle}>Location</Text>
+                </View>
+            )}
+
+            <MapView
+                style={styles.map}
+                initialRegion={currentRegion}
+                onMapReady={() => setMapReady(true)}
+                showsUserLocation={false}
+                zoomEnabled={true}
+                zoomControlEnabled={true}
+                scrollEnabled={true}
+                rotateEnabled={true}
+                pitchEnabled={true}
             >
-                <Animated.View style={[styles.mapContainer, { transform: [{ translateY: slideAnim }] }]}>
-                    <MapView
-                        ref={mapRef}
-                        style={styles.map}
-                        initialRegion={initialRegion}
-                        {...(Platform.OS === 'ios' ? {} : { provider: 'google' })}
+                {/* Main listing marker */}
+                {listing && (
+                    <Marker
+                        coordinate={{
+                            latitude: listing.coordinates.latitude,
+                            longitude: listing.coordinates.longitude
+                        }}
+                        key="main-listing-marker"
                     >
-                        {/* Main listing marker */}
-                        <Marker
-                            coordinate={{
-                                latitude: listing.coordinates.latitude,
-                                longitude: listing.coordinates.longitude
-                            }}
-                            onPress={showListingDetails}
-                        >
-                            <View style={styles.mainMarker}>
-                                <Text style={styles.priceText}>
-                                    ${listing.list_price?.toLocaleString()}
-                                </Text>
-                            </View>
-                        </Marker>
-
-                        {/* Facility markers */}
-                        {facilities.map((facility, index) => (
-                            <Marker
-                                key={`${facility.type}-${index}`}
-                                coordinate={facility.coordinates}
-                            >
-                                <View style={[
-                                    styles.facilityMarker,
-                                    { backgroundColor: FACILITY_TYPES[facility.type].color }
-                                ]}>
-                                    <MaterialIcons
-                                        name={FACILITY_TYPES[facility.type].icon}
-                                        size={20}
-                                        color="white"
-                                    />
-                                </View>
-                            </Marker>
-                        ))}
-                    </MapView>
-
-                    {loading && (
-                        <View style={styles.loadingContainer}>
-                            <ActivityIndicator size="large" color="#54B4AF" />
-                        </View>
-                    )}
-
-                    <TouchableOpacity style={styles.closeButton} onPress={hideMap}>
-                        <MaterialIcons name="close" size={24} color="black" />
-                    </TouchableOpacity>
-
-                    <View style={styles.facilitiesCountContainer}>
-                        <View style={styles.facilitiesCountBadge}>
-                            <Text style={styles.facilitiesCountText}>
-                                {facilities.length} nearby places
+                        <View style={styles.mainMarker}>
+                            <Text style={styles.markerText}>
+                                ${listing.list_price?.toLocaleString()}
                             </Text>
                         </View>
-                    </View>
+                    </Marker>
+                )}
 
-                    {showListingCard && (
-                        <Animated.View style={[styles.listingCardContainer, { transform: [{ translateY: cardSlideAnim }] }]}>
-                            <View style={styles.handleContainer}>
-                                <View style={styles.handle} />
-                            </View>
-                            
-                            <ListingCard 
-                                listing={listing}
-                                showActions={true}
-                                currentMediaIndex={currentMediaIndex}
-                                onMediaIndexChange={setCurrentMediaIndex}
-                                onClose={hideListingCard}
-                                onFavorite={() => {}}
+                {/* Facility markers */}
+                {facilities.map((facility) => (
+                    <Marker
+                        key={facility.placeId}
+                        coordinate={facility.coordinates}
+                    >
+                        <View 
+                            style={[
+                                styles.facilityMarker,
+                                { backgroundColor: PLACE_COLORS[facility.type] }
+                            ]}
+                        >
+                            <MaterialIcons 
+                                name={PLACE_ICONS[facility.type]} 
+                                size={20} 
+                                color="white" 
                             />
-                        </Animated.View>
-                    )}
-                </Animated.View>
-            </PanGestureHandler>
-        </GestureHandlerRootView>
+                        </View>
+                    </Marker>
+                ))}
+            </MapView>
+
+            {/* <View style={styles.facilitiesCountContainer}>
+                <Text style={styles.facilitiesCountText}>
+                    {facilities.length} nearby places
+                </Text>
+            </View> */}
+
+            {onClose && (
+                <TouchableOpacity 
+                    style={styles.closeButton}
+                    onPress={onClose}
+                >
+                    <MaterialIcons name="close" size={24} color="black" />
+                </TouchableOpacity>
+            )}
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
-        position: 'absolute',
+        position: 'relative',
+        backgroundColor: 'white',
+        borderRadius: 24,
+        overflow: 'hidden',
         width: '100%',
-        height: '100%',
-        zIndex: 1000,
+        height: 450, // Increased from 300 to 450
     },
-    mapContainer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
+    header: {
+        padding: 16,
         backgroundColor: 'white',
     },
+    headerTitle: {
+        fontSize: 20,
+        fontWeight: '500',
+        color: '#54B4AF',
+    },
     map: {
+        width: '100%',
         flex: 1,
     },
     mainMarker: {
         backgroundColor: 'white',
+        borderRadius: 16,
         paddingHorizontal: 12,
         paddingVertical: 8,
-        borderRadius: 16,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
         elevation: 5,
     },
-    priceText: {
+    markerText: {
+        fontWeight: 'bold',
         fontSize: 16,
-        fontWeight: '600',
-        color: 'black',
     },
     facilityMarker: {
         padding: 8,
         borderRadius: 20,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    facilitiesCountContainer: {
+        position: 'absolute',
+        bottom: 16,
+        alignSelf: 'center',
+        backgroundColor: 'white',
+        borderRadius: 20,
+        paddingVertical: 8,
+        paddingHorizontal: 16,
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
         elevation: 5,
     },
-    loadingContainer: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        justifyContent: 'center',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    facilitiesCountText: {
+        fontWeight: '600',
+        fontSize: 14,
     },
     closeButton: {
         position: 'absolute',
         top: 16,
         right: 16,
         backgroundColor: 'white',
+        borderRadius: 20,
         padding: 8,
-        borderRadius: 24,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
+        shadowColor: "#000",
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
         shadowOpacity: 0.25,
         shadowRadius: 3.84,
         elevation: 5,
-    },
-    facilitiesCountContainer: {
-        position: 'absolute',
-        bottom: 32,
-        left: 0,
-        right: 0,
-        alignItems: 'center',
-    },
-    facilitiesCountBadge: {
-        backgroundColor: 'white',
-        paddingHorizontal: 24,
-        paddingVertical: 12,
-        borderRadius: 24,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
-    },
-    facilitiesCountText: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: 'black',
-    },
-    listingCardContainer: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        backgroundColor: 'white',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        padding: 16,
-        maxHeight: CARD_HEIGHT,
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: -2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
-    },
-    handleContainer: {
-        alignItems: 'center',
-        paddingVertical: 8,
-    },
-    handle: {
-        width: 40,
-        height: 4,
-        backgroundColor: '#E0E0E0',
-        borderRadius: 2,
     },
 });
 

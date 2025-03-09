@@ -5,15 +5,18 @@ import {
     Text, 
     TouchableOpacity, 
     Dimensions, 
-    Animated 
+    Animated,
+    StyleSheet,
+    StatusBar,
+    Platform
 } from 'react-native';
-import { Stack, useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { Feather } from '@expo/vector-icons';
 import MapView, { Marker, Region } from 'react-native-maps';
 import { GestureHandlerRootView, PanGestureHandler } from 'react-native-gesture-handler';
 import { ListingData } from '@/types/listingData';
 import ListingCard from '@/components/ListingCard';
-import { ModelPreference } from '@/types/chatInterface';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const SCREEN_HEIGHT = Dimensions.get('window').height;
@@ -28,6 +31,7 @@ const DEFAULT_REGION = {
 
 const GoogleMapView = () => {
     const router = useRouter();
+    const insets = useSafeAreaInsets();
     const { listingsData } = useLocalSearchParams();
     const [listings, setListings] = useState<ListingData[]>([]);
     const [selectedListing, setSelectedListing] = useState<ListingData | null>(null);
@@ -36,6 +40,9 @@ const GoogleMapView = () => {
     const [currentRegion, setCurrentRegion] = useState<Region>(DEFAULT_REGION);
     const slideAnim = useRef(new Animated.Value(CARD_HEIGHT)).current;
     const mapRef = useRef<MapView>(null);
+
+    // Calculate footer height from global var or use a default
+    const footerHeight = global.FOOTER_HEIGHT || 80;
 
     useEffect(() => {
         if (!listingsData) return;
@@ -86,27 +93,36 @@ const GoogleMapView = () => {
     };
 
     return (
-        <GestureHandlerRootView style={{ flex: 1 }}>
-            <View className="flex-1">
-                <Stack.Screen 
-                    options={{
-                        title: "Map View",
-                        headerShadowVisible: false,
-                        headerStyle: { backgroundColor: '#F8F8F8' },
-                        headerLeft: () => (
-                            <TouchableOpacity 
-                                onPress={() => router.back()} 
-                                className="pl-4"
-                            >
-                                <Feather name="arrow-left" size={24} color="black" />
-                            </TouchableOpacity>
-                        ),
-                    }}
-                />
+        <GestureHandlerRootView style={styles.rootContainer}>
+            <View style={styles.container}>
+                <StatusBar barStyle="dark-content" />
+                
+                {/* Custom Header */}
+                <View style={[
+                    styles.header, 
+                    { 
+                        paddingTop: Platform.OS === 'ios' 
+                            ? Math.max(insets.top, 12) 
+                            : StatusBar.currentHeight 
+                                ? StatusBar.currentHeight + 12 
+                                : 24 
+                    }
+                ]}>
+                    <TouchableOpacity 
+                        onPress={() => router.back()} 
+                        style={styles.backButton}
+                    >
+                        <Feather name="arrow-left" size={24} color="black" />
+                    </TouchableOpacity>
+                    
+                    <Text style={styles.headerTitle}>Map View</Text>
+                    
+                    <View style={styles.headerRightPlaceholder} />
+                </View>
 
                 <MapView
                     ref={mapRef}
-                    style={{ width: SCREEN_WIDTH, height: SCREEN_HEIGHT }}
+                    style={styles.map}
                     initialRegion={currentRegion}
                     region={currentRegion}
                     onMapReady={() => setMapReady(true)}
@@ -125,18 +141,20 @@ const GoogleMapView = () => {
                                 showListingCard(listing);
                             }}
                         >
-                            <View className="bg-white rounded-2xl px-3 py-2 shadow-lg">
-                                <Text className="font-medium text-base">
-                                    ${listing.list_price?.toLocaleString()}
+                            <View style={styles.markerContainer}>
+                                <Text style={styles.markerText}>
+                                    {listing.list_price ? `$${listing.list_price.toLocaleString()}` : '$0'}
                                 </Text>
                             </View>
                         </Marker>
                     ))}
                 </MapView>
 
-                <View className="absolute bottom-12 left-0 right-0 flex-row justify-center">
-                    <View className="bg-white rounded-full py-3 px-8 shadow-xl">
-                        <Text className="font-semibold text-base">{listings.length} listings</Text>
+                <View style={styles.listingCountContainer}>
+                    <View style={styles.listingCountBadge}>
+                        <Text style={styles.listingCountText}>
+                            {listings.length} {listings.length === 1 ? 'listing' : 'listings'}
+                        </Text>
                     </View>
                 </View>
 
@@ -149,29 +167,187 @@ const GoogleMapView = () => {
                         }}
                     >
                         <Animated.View
-                            className="absolute w-full px-4 pb-8"
                             style={[
+                                styles.cardContainer,
                                 {
-                                    bottom: 0,
                                     transform: [{ translateY: slideAnim }],
-                                    maxHeight: CARD_HEIGHT,
+                                    bottom: footerHeight, // Position directly above the footer with no extra padding
                                 }
                             ]}
                         >
+                            <View style={styles.cardHandle}>
+                                <View style={styles.handleBar} />
+                            </View>
+                            
+                            <View style={styles.customActionContainer}>
+                                <TouchableOpacity 
+                                    style={styles.actionButton}
+                                    onPress={() => {/* Handle favorite */}}
+                                >
+                                    <Feather name="heart" size={24} color="#FF6B6B" />
+                                </TouchableOpacity>
+                                
+                                <TouchableOpacity 
+                                    style={styles.actionButton}
+                                    onPress={hideListingCard}
+                                >
+                                    <Feather name="x" size={24} color="#333" />
+                                </TouchableOpacity>
+                            </View>
+                            
                             <ListingCard 
                                 listing={selectedListing}
-                                showActions={true}
+                                showActions={false} // We're using our custom actions
                                 currentMediaIndex={currentMediaIndex}
                                 onMediaIndexChange={setCurrentMediaIndex}
-                                onClose={hideListingCard}
-                                onFavorite={() => {/* Handle favorite */}}
+                                // Not using the built-in actions
+                                onClose={undefined}
+                                onFavorite={undefined}
+                                containerStyle={styles.listingCardContainer}
                             />
                         </Animated.View>
                     </PanGestureHandler>
                 )}
+                
+                {/* Removed floating back button */}
             </View>
         </GestureHandlerRootView>
     );
 };
+
+const styles = StyleSheet.create({
+    rootContainer: {
+        flex: 1,
+    },
+    container: {
+        flex: 1,
+        backgroundColor: '#F8F8F8',
+    },
+    header: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        zIndex: 10,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        paddingHorizontal: 16,
+        paddingBottom: 12,
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    },
+    backButton: {
+        padding: 8,
+        backgroundColor: 'white',
+        borderRadius: 20,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.2,
+        shadowRadius: 2,
+        elevation: 3,
+    },
+    headerTitle: {
+        fontSize: 18,
+        fontWeight: '600',
+        color: '#333',
+    },
+    headerRightPlaceholder: {
+        width: 40,
+    },
+    map: {
+        width: SCREEN_WIDTH,
+        height: SCREEN_HEIGHT,
+    },
+    markerContainer: {
+        backgroundColor: 'white',
+        borderRadius: 16,
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+        elevation: 5,
+    },
+    markerText: {
+        fontWeight: '600',
+        fontSize: 16,
+    },
+    listingCountContainer: {
+        position: 'absolute',
+        bottom: 120,
+        left: 0,
+        right: 0,
+        alignItems: 'center',
+    },
+    listingCountBadge: {
+        backgroundColor: 'white',
+        borderRadius: 30,
+        paddingVertical: 12,
+        paddingHorizontal: 24,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 4,
+        elevation: 5,
+    },
+    listingCountText: {
+        fontWeight: '600',
+        fontSize: 16,
+    },
+    cardContainer: {
+        position: 'absolute',
+        left: 0,
+        right: 0,
+        paddingHorizontal: 12,
+        maxHeight: CARD_HEIGHT,
+        borderTopLeftRadius: 20,
+        borderTopRightRadius: 20,
+        backgroundColor: 'white',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -3 },
+        shadowOpacity: 0.2,
+        shadowRadius: 5,
+        elevation: 10,
+    },
+    cardHandle: {
+        width: '100%',
+        alignItems: 'center',
+        paddingVertical: 10,
+    },
+    handleBar: {
+        width: 40,
+        height: 5,
+        borderRadius: 3,
+        backgroundColor: '#E0E0E0',
+    },
+    customActionContainer: {
+        position: 'absolute',
+        bottom: 256,
+        left: 10,
+        zIndex: 2,
+        flexDirection: 'row',
+    },
+    actionButton: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'white',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginLeft: 10,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.2,
+        shadowRadius: 3,
+        elevation: 5,
+    },
+    listingCardContainer: {
+        shadowOpacity: 0,
+        elevation: 0,
+        paddingBottom: 0, // Remove bottom padding to align perfectly with footer
+    },
+    // Removed floating back button style
+});
 
 export default GoogleMapView;

@@ -1,3 +1,5 @@
+// @/app/navigation/camila/_layout.tsx
+// This file is a custom layout component that will be used to handle the navigation for the Camila section of the app.
 import React from 'react';
 import { Stack } from 'expo-router';
 

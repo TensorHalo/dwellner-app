@@ -1,3 +1,5 @@
+// @/app/navigation/_layout.tsx
+// This file is a custom tab bar component that will be used as the footer navigation for the app.
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Image, Dimensions } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';

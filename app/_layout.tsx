@@ -1,3 +1,5 @@
+// @ root layout file
+// This file is the root layout file for the app. It is responsible for loading the fonts and displaying the splash screen until the fonts are loaded. It also wraps the app in the SafeAreaProvider and TimerProvider.
 import TimerProvider from "@/context/TimerContext";
 import { useFonts } from "expo-font";
 import { SplashScreen, Stack } from "expo-router";

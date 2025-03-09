@@ -277,7 +277,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
     };
 
     const handleApiResponse = async (responseData: any) => {
-        console.log('Handling API response:', responseData);
+        console.log('Handling API response');
         setIsShowingResponse(true);
         
         try {
@@ -289,17 +289,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                 
                 setChatMessages(prev => [...prev, textMessages[0]]);
                 await messageAnimator.animateMessages([textMessages[0]], updateMessage);
+                
                 if (listingsMessage) {
                     setChatMessages(prev => [...prev, listingsMessage]);
                 }
-
+    
                 if (textMessages.length > 1) {
                     const remainingMessages = textMessages.slice(1);
                     setChatMessages(prev => [...prev, ...remainingMessages]);
                     await messageAnimator.animateMessages(remainingMessages, updateMessage);
                 }
             }
-
+    
             if (effectiveUserId && effectiveUserId.trim() !== '') {
                 try {
                     console.log('Saving chat history for user:', effectiveUserId);
@@ -321,11 +322,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                 text: `Error processing response: ${error.message}`,
                 sender: 'bot',
             };
-            setChatMessages(prev => [...prev.filter(msg => !msg.isLoading), {
-                id: Date.now(),
-                text: `Error processing response: ${error.message}`,
-                sender: 'bot',
-            }]);
+            setChatMessages(prev => [...prev.filter(msg => !msg.isLoading), errorMessage]);
         } finally {
             setIsShowingResponse(false);
         }

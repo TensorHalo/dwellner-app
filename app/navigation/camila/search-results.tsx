@@ -28,6 +28,8 @@ import ListingsPrefetcher from '@/components/listings/ListingsPrefetcher';
 import LoadingOverlay from '@/components/listings/LoadingOverlay';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NearbyFacilitiesGallery from '@/components/NearbyFacilitiesGallery';
+import ListingAdditionalInfo from '@/components/listings/ListingAdditionalInfo';
+import ListingAgentInfo from '@/components/listings/ListingAgentInfo';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 const SCREEN_WIDTH = Dimensions.get('window').width;
@@ -41,7 +43,6 @@ const SearchResults = () => {
     const [listings, setListings] = useState<ListingData[]>([]);
     const [activeTab, setActiveTab] = useState('Restaurant');
     const [showFilters, setShowFilters] = useState(false);
-    const [showMap, setShowMap] = useState(false);
     const [facilities, setFacilities] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [modelPreference, setModelPreference] = useState<ModelPreference | null>(null);
@@ -56,15 +57,11 @@ const SearchResults = () => {
     // Service refs
     const listingsApiRef = useRef<ListingsApi | null>(null);
     const cache = ListingsCache.getInstance();
-    const MAX_VISIBLE_LISTINGS = 5; // Changed from 8 to 5
+    const MAX_VISIBLE_LISTINGS = 10;
     const currentListing = listings[currentIndex];
     const [isNextListingReady, setIsNextListingReady] = useState(false);
     const [isFetching, setIsFetching] = useState(false);
     const prefetchingRef = useRef<{ [key: string]: boolean }>({});
-
-    const handleAddressPress = () => {
-        setShowMap(true);
-    };
 
     const isMounted = useRef(true);
 
@@ -105,28 +102,87 @@ const SearchResults = () => {
                 hideListingCard();
                 return true;
             }
-            if (showMap) {
-                toggleMap();
-                return true;
-            }
             return false;
         });
 
         return () => backHandler.remove();
-    }, [showMap, showListingCard]);
+    }, [showListingCard]);
 
     // Initialize listings from data
     useEffect(() => {
         if (!listingsData) return;
-
+    
         try {
             const decodedData = decodeURIComponent(listingsData as string);
             const { listings: initialListings, modelPreference: pref, listingIds } = JSON.parse(decodedData);
-
+    
             if (initialListings?.[0]) {
+                console.log('Initial listing received with fields:', Object.keys(initialListings[0]).join(', '));
+            
+                if (initialListings[0].originalEntryTimestamp) {
+                    console.log('First listing already has timestamp data:', {
+                        originalEntryTimestamp: initialListings[0].originalEntryTimestamp,
+                        modificationTimestamp: initialListings[0].modificationTimestamp
+                    });
+                } else {
+                    console.log('First listing missing additional fields');
+                }
+                
                 cache.initializeWithFirstListing(initialListings[0], listingIds, pref);
                 setListings([initialListings[0]]);
                 setModelPreference(pref);
+        
+                // Immediately trigger prefetch for the second listing
+                if (listingIds.length > 1) {
+                    const secondListingId = listingIds[1];
+                    // We'll perform this after the component is fully mounted and tokens are available
+                    const prefetchSecondListing = async () => {
+                        try {
+                            // Wait for tokens and API to be initialized
+                            const tokens = await getAuthTokens();
+                            if (!tokens?.accessToken || !tokens?.idToken) {
+                                console.error('No valid tokens for prefetching second listing');
+                                return;
+                            }
+    
+                            if (!listingsApiRef.current) {
+                                listingsApiRef.current = new ListingsApi(tokens.accessToken, tokens.idToken);
+                            }
+    
+                            // Check if already cached first
+                            const cachedListing = cache.getListing(secondListingId);
+                            if (cachedListing) {
+                                console.log('Second listing already cached:', secondListingId);
+                                setIsNextListingReady(true);
+                                return;
+                            }
+    
+                            // Start prefetch
+                            console.log('Immediately prefetching second listing:', secondListingId);
+                            prefetchingRef.current[secondListingId] = true;
+                            
+                            const listingData = await listingsApiRef.current.fetchListingDetail(
+                                secondListingId,
+                                pref
+                            );
+                            
+                            if (listingData && isMounted.current) {
+                                console.log('Successfully prefetched second listing:', secondListingId);
+                                cache.cacheListing(listingData);
+                                setIsNextListingReady(true);
+                            }
+                        } catch (error) {
+                            console.error('Error prefetching second listing:', error);
+                        } finally {
+                            if (secondListingId) {
+                                prefetchingRef.current[secondListingId] = false;
+                            }
+                        }
+                    };
+    
+                    // Execute the prefetch
+                    prefetchSecondListing();
+                }
             }
         } catch (error) {
             console.error('Error initializing listings:', error);
@@ -232,26 +288,6 @@ const SearchResults = () => {
         }
     };
 
-    const toggleMap = () => {
-        if (showMap) {
-            Animated.spring(slideAnim, {
-                toValue: 0,
-                useNativeDriver: true,
-            }).start(() => {
-                setShowMap(false);
-                setShowListingCard(false);
-            });
-        } else {
-            setShowMap(true);
-            Animated.spring(slideAnim, {
-                toValue: -SCREEN_HEIGHT + 100,
-                useNativeDriver: true,
-                damping: 15,
-                stiffness: 100
-            }).start();
-        }
-    };
-
     const showListingDetails = () => {
         setShowListingCard(true);
         Animated.spring(cardSlideAnim, {
@@ -274,91 +310,24 @@ const SearchResults = () => {
     };
 
     const handleBackPress = () => {
-        if (showMap) {
-            setShowMap(false);
-            return;
-        }
         router.back();
     };
 
-    const navigateToViewMore = async () => {
-        setIsLoading(true);
-        setLoadingProgress(0);
-    
-        try {
-            const prefetcher = ListingsPrefetcher.getInstance();
-            
-            const tokens = await getAuthTokens();
-            if (!tokens?.accessToken || !tokens?.idToken) {
-                throw new Error('No access token available');
-            }
-    
-            prefetcher.initialize(tokens.accessToken);
-    
-            // Initialize cache with current listings
-            const currentListings = cache.getAllCachedListings();
-            prefetcher.initializeCache(currentListings);
-    
-            // Get uncached listing IDs
-            const uncachedIds = cache.getUncachedListingIds();
-            const totalToFetch = uncachedIds.length;
-    
-            if (totalToFetch === 0) {
-                // If all listings are cached, navigate immediately
-                router.push({
-                    pathname: '/navigation/camila/view-more',
-                    params: { 
-                        listingsData: encodeURIComponent(JSON.stringify({
-                            cachedListings: currentListings,
-                            modelPreference: modelPreference
-                        }))
-                    }
-                });
-                return;
-            }
-    
-            let fetchedCount = 0;
-            const allListings = [...currentListings];
-    
-            // Fetch listings one by one to track progress
-            for (const listingId of uncachedIds) {
-                try {
-                    const listingData = await listingsApiRef.current?.fetchListingDetail(
-                        listingId,
-                        modelPreference!
-                    );
-    
-                    if (listingData) {
-                        cache.cacheListing(listingData);
-                        allListings.push(listingData);
-                        fetchedCount++;
-                        setLoadingProgress((fetchedCount / totalToFetch) * 100);
-                    }
-                } catch (error) {
-                    console.error('Error fetching listing:', listingId, error);
-                }
-            }
-    
-            if (allListings.length === 0) {
-                throw new Error('Failed to load listings');
-            }
-    
-            router.push({
-                pathname: '/camila/view-more',
-                params: { 
-                    listingsData: encodeURIComponent(JSON.stringify({
-                        cachedListings: allListings,
-                        modelPreference: modelPreference
-                    }))
-                }
-            });
-        } catch (error) {
-            console.error('Error during prefetch:', error);
-            Alert.alert('Error', 'Failed to load all listings. Please try again.');
-        } finally {
-            setIsLoading(false);
-            setLoadingProgress(0);
+    const navigateToViewMore = () => {
+        if (!cache.getListingIds() || cache.getListingIds().length === 0 || !modelPreference) {
+            Alert.alert('Error', 'No listings available');
+            return;
         }
+
+        router.push({
+            pathname: '/navigation/camila/view-more',
+            params: { 
+                listingsData: encodeURIComponent(JSON.stringify({
+                    listingIds: cache.getListingIds(),
+                    modelPreference: modelPreference
+                }))
+            }
+        });
     };
 
     if (!listings.length || !currentListing) {
@@ -428,44 +397,6 @@ const SearchResults = () => {
                 </View>
             </View>
 
-            {showListingCard && showMap && (
-                <Animated.View
-                    className="absolute w-full px-4 pb-8 z-20"
-                    style={[
-                        {
-                            bottom: 0,
-                            transform: [{ translateY: cardSlideAnim }],
-                            maxHeight: SCREEN_HEIGHT * 0.7,
-                            backgroundColor: 'white',
-                            borderTopLeftRadius: 20,
-                            borderTopRightRadius: 20,
-                            shadowColor: "#000",
-                            shadowOffset: {
-                                width: 0,
-                                height: -2,
-                            },
-                            shadowOpacity: 0.25,
-                            shadowRadius: 3.84,
-                            elevation: 5,
-                        }
-                    ]}
-                >
-                    <View className="w-full items-center py-2">
-                        <View className="w-10 h-1 rounded-full bg-gray-300" />
-                    </View>
-                    
-                    <ListingCard 
-                        listing={currentListing}
-                        showActions={true}
-                        currentMediaIndex={currentMediaIndex}
-                        onMediaIndexChange={setCurrentMediaIndex}
-                        onClose={hideListingCard}
-                        onAddressPress={handleAddressPress}
-                        onFavorite={() => {/* Handle favorite */}}
-                    />
-                </Animated.View>
-            )}
-
             <Animated.View 
                 style={[
                     { 
@@ -489,12 +420,11 @@ const SearchResults = () => {
                                 listing={currentListing}
                                 currentMediaIndex={currentMediaIndex}
                                 onMediaIndexChange={setCurrentMediaIndex}
-                                onAddressPress={handleAddressPress}
                             />
                         </View>
                     </View>
 
-                    {/* Nearby Section - Redesigned */}
+                    {/* Nearby Section */}
                     <View className="px-4 mt-4">
                         <View className="bg-white rounded-3xl overflow-hidden scale-100">
                             {/* Nearby Facilities Gallery */}
@@ -505,63 +435,80 @@ const SearchResults = () => {
                             />
                         </View>
                     </View>
+
+                    {/* Additional Info */}
+                    <View className="px-4 mt-4">
+                        <ListingAdditionalInfo listing={currentListing} />
+                    </View>
+
+                    {/* Location Map - Integrated Section */}
+                    <View className="px-4 mt-2">
+                        <View className="bg-white rounded-3xl overflow-hidden scale-100">
+                            <ListingMap 
+                                listing={currentListing}
+                                visible={true}
+                                showHeader={true}
+                            />
+                        </View>
+                    </View>
+
+                    {/* Agent Contact Information */}
+                    <View className="px-4 mt-4 mb-8">
+                        <View className="bg-white rounded-3xl overflow-hidden scale-100">
+                            <ListingAgentInfo 
+                                listAgentKey={currentListing.listAgentKey}
+                            />
+                        </View>
+                    </View>
                 </ScrollView>
 
-                {/* Placeholder for fixed controls - This ensures scrolling content doesn't get hidden behind the controls */}
+                {/* Placeholder for fixed controls */}
                 <View style={styles.controlsSpacer} />
             
-            {/* Fixed Floating Controls */}
-            <View style={[styles.floatingControls, { bottom: Math.max(120, insets.bottom + 90) }]}>
-                <TouchableOpacity 
-                    style={styles.infoButton}
-                    onPress={handleOpenListingUrl}
-                >
-                    <Feather name="info" size={24} color="white" />
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.favoriteButton}>
-                    <Feather name="star" size={24} color="black" />
-                </TouchableOpacity>
-
-                <View style={styles.navigationControls}>
+                {/* Fixed Floating Controls */}
+                <View style={[styles.floatingControls, { bottom: Math.max(120, insets.bottom + 100) }]}>
                     <TouchableOpacity 
-                        onPress={handlePreviousListing}
-                        disabled={currentIndex === 0}
-                        style={styles.navButton}
+                        style={styles.infoButton}
+                        onPress={handleOpenListingUrl}
                     >
-                        <Feather 
-                            name="chevron-up" 
-                            size={24} 
-                            color={currentIndex === 0 ? "#CCCCCC" : "black"} 
-                        />
+                        <Feather name="info" size={24} color="white" />
                     </TouchableOpacity>
-                    
-                    <Text style={styles.paginationText}>
-                        {currentIndex + 1}/{Math.min(MAX_VISIBLE_LISTINGS, cache.getListingIds().length)}
-                    </Text>
-                    
-                    <TouchableOpacity 
-                        onPress={handleNextListing}
-                        disabled={isLoading || currentIndex >= MAX_VISIBLE_LISTINGS - 1}
-                        style={styles.navButton}
-                    >
-                        <Feather 
-                            name="chevron-down" 
-                            size={24} 
-                            color={(isLoading || currentIndex >= MAX_VISIBLE_LISTINGS - 1) ? "#CCCCCC" : "black"} 
-                        />
+
+                    <TouchableOpacity style={styles.favoriteButton}>
+                        <Feather name="star" size={24} color="black" />
                     </TouchableOpacity>
+
+                    <View style={styles.navigationControls}>
+                        <TouchableOpacity 
+                            onPress={handlePreviousListing}
+                            disabled={currentIndex === 0}
+                            style={styles.navButton}
+                        >
+                            <Feather 
+                                name="chevron-up" 
+                                size={24} 
+                                color={currentIndex === 0 ? "#CCCCCC" : "black"} 
+                            />
+                        </TouchableOpacity>
+                        
+                        <Text style={styles.paginationText}>
+                            {currentIndex + 1}/{Math.min(MAX_VISIBLE_LISTINGS, cache.getListingIds().length)}
+                        </Text>
+                        
+                        <TouchableOpacity 
+                            onPress={handleNextListing}
+                            disabled={isLoading || currentIndex >= MAX_VISIBLE_LISTINGS - 1}
+                            style={styles.navButton}
+                        >
+                            <Feather 
+                                name="chevron-down" 
+                                size={24} 
+                                color={(isLoading || currentIndex >= MAX_VISIBLE_LISTINGS - 1) ? "#CCCCCC" : "black"} 
+                            />
+                        </TouchableOpacity>
+                    </View>
                 </View>
-            </View>
             </Animated.View>
-
-            {currentListing && (
-                <ListingMap 
-                    listing={currentListing}
-                    visible={showMap}
-                    onClose={() => setShowMap(false)}
-                />
-            )}
             
             <LoadingOverlay 
                 visible={isLoading} 
@@ -664,7 +611,7 @@ const styles = StyleSheet.create({
         marginVertical: 4,
     },
     controlsSpacer: {
-        height: 0, // No spacer needed as we're positioning controls higher
+        height: 0, 
     }
 });
 
