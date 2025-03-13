@@ -310,8 +310,8 @@ const styles = StyleSheet.create({
         fontSize: 16,
     },
     facilityMarker: {
-        padding: 8,
-        borderRadius: 20,
+        padding: 6,
+        borderRadius: 10,
         alignItems: 'center',
         justifyContent: 'center',
     },

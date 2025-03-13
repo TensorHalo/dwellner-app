@@ -1,5 +1,6 @@
+// @/components/SearchFilters.tsx
 import React, { useRef } from 'react';
-import { View, Text, TouchableOpacity, Modal, Animated, PanResponder, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, Animated, PanResponder, Dimensions, ScrollView } from 'react-native';
 import { ModelPreference } from '@/types/chatInterface';
 
 interface SearchFiltersProps {
@@ -58,17 +59,39 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({ visible, onDismiss, model
 
     const renderFilterTags = () => {
         if (!modelPreference) return null;
-
-        const tags = [
+    
+        // Standard fields that have special formatting
+        const standardTags = [
             modelPreference.rent_or_purchase === 'rent' ? 'For Rent' : 'For Sale',
-            `${modelPreference.bedrooms} Bed${modelPreference.bedrooms > 1 ? 's' : ''}`,
-            `${modelPreference.bathrooms} Bath${modelPreference.bathrooms > 1 ? 's' : ''}`,
+            modelPreference.bedrooms ? `${modelPreference.bedrooms} Bed${modelPreference.bedrooms > 1 ? 's' : ''}` : null,
+            modelPreference.bathrooms ? `${modelPreference.bathrooms} Bath${modelPreference.bathrooms > 1 ? 's' : ''}` : null,
             modelPreference.property_type,
             modelPreference.location,
-            modelPreference.budget_max ? `Up to $${modelPreference.budget_max.toLocaleString()}` : ''
+            modelPreference.budget_max ? `Up to $${modelPreference.budget_max.toLocaleString()}` : null,
+            modelPreference.budget_min ? `From $${modelPreference.budget_min.toLocaleString()}` : null
         ].filter(Boolean);
-
-        return tags.map((tag, index) => (
+    
+        // Get all keys in modelPreference
+        const allKeys = Object.keys(modelPreference);
+    
+        // Filter out standard keys we've already handled
+        const standardKeys = ['rent_or_purchase', 'bedrooms', 'bathrooms', 'property_type', 
+                              'location', 'budget_max', 'budget_min', 'bedrooms_condition', 'related'];
+        
+        // Get additional keys (dynamic fields like google_maps)
+        const additionalKeys = allKeys.filter(key => !standardKeys.includes(key));
+        
+        // Create tags for additional fields - showing only the value
+        const additionalTags = additionalKeys.map(key => {
+            const value = modelPreference[key];
+            if (value === null || value === undefined || value === '') return null;
+            return `${value}`;
+        }).filter(Boolean);
+    
+        // Combine standard and additional tags
+        const allTags = [...standardTags, ...additionalTags];
+    
+        return allTags.map((tag, index) => (
             <View 
                 key={index} 
                 className="bg-gray-50 rounded-full px-3 py-1 mr-2 mb-2"
@@ -123,9 +146,11 @@ const SearchFilters: React.FC<SearchFiltersProps> = ({ visible, onDismiss, model
                                     Current Search Preferences
                                 </Text>
 
-                                <View className="flex-row flex-wrap mb-8">
-                                    {renderFilterTags()}
-                                </View>
+                                <ScrollView style={{ maxHeight: SCREEN_HEIGHT * 0.4 }}>
+                                    <View className="flex-row flex-wrap mb-8">
+                                        {renderFilterTags()}
+                                    </View>
+                                </ScrollView>
 
                                 <View className="items-center">
                                     <TouchableOpacity 

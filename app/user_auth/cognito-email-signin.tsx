@@ -131,7 +131,7 @@ const CognitoSignIn = () => {
                     {/* Logo */}
                     <View className="items-center mt-8 mb-8">
                         <Image 
-                            source={require('@/assets/dwellnerlogo.png')}
+                            source={require('@/assets/rounded_logo.png')}
                             style={{ width: 80, height: 80 }}
                             resizeMode="contain"
                         />

@@ -4,14 +4,14 @@
     "slug": "Camila",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/app_logo.png",
+    "icon": "./assets/dwellnerlogo.png",
     "scheme": "camila",
     "userInterfaceStyle": "light",
-    "splash": {
-      "image": "./assets/app_logo.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
-    },
+    // "splash": {
+    //   "image": "./assets/dwellnerlogo.png",
+    //   "resizeMode": "contain",
+    //   "backgroundColor": "#ffffff"
+    // },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -25,7 +25,7 @@
     "android": {
       "package": "com.dwellner.app",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/dwellnerlogo.png",
         "backgroundColor": "#ffffff"
       },
       "config": {
@@ -35,7 +35,7 @@
       }
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/dwellnerlogo.png"
     },
     "runtimeVersion": {
       "policy": "sdkVersion"

@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import backgroundVideo from "@/assets/videos/opening_video.mov";
 
-const BOTTOM_SHEET_HEIGHT = 320;
+const BOTTOM_SHEET_HEIGHT = 270;
 
 const App = () => {
     const router = useRouter();
@@ -72,7 +72,7 @@ const App = () => {
                             </Text>
                         </TouchableOpacity>
 
-                        <TouchableOpacity 
+                        {/* <TouchableOpacity 
                             className={`p-4 rounded-lg flex-row items-center justify-center border border-gray-300 ${isPressedPhone ? 'bg-[#5eead4]' : 'bg-white'}`}
                             onPress={() => router.push("/user_auth/cognito-phone-auth")}
                             onPressIn={() => setIsPressedPhone(true)}
@@ -82,7 +82,7 @@ const App = () => {
                             <Text className="text-gray-400 font-semibold text-base">
                                 Continue with Phone
                             </Text>
-                        </TouchableOpacity>
+                        </TouchableOpacity> */}
 
                         <TouchableOpacity 
                             className={`p-4 rounded-lg flex-row items-center justify-center border border-gray-300 ${isPressedGoogle ? 'bg-[#5eead4]' : 'bg-white'}`}

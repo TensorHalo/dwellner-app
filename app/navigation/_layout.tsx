@@ -148,9 +148,9 @@ const styles = StyleSheet.create({
     marginTop: -15,
   },
   camilaIconCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#54B4AF',
     justifyContent: 'center',
     alignItems: 'center',

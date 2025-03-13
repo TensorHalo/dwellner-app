@@ -34,7 +34,7 @@ export const getAuthTokens = async (): Promise<AuthTokens | null> => {
             return null;
         }
 
-        console.log('Auth tokens retrieved successfully');
+        // console.log('Auth tokens retrieved successfully');
         return parsedTokens;
     } catch (error) {
         console.error('Error retrieving auth tokens:', error);

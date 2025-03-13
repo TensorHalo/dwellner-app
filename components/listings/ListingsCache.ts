@@ -24,7 +24,7 @@ export class ListingsCache {
     initializeWithFirstListing(firstListing: ListingData, allListingIds: string[], preference: ModelPreference) {
         this.clearCache();
         this.listingIds = allListingIds;
-        this.modelPreference = preference;
+        this.modelPreference = { ...preference };
         
         console.log('Initializing cache with first listing fields:', {
             listing_id: firstListing.listing_id,
@@ -39,11 +39,7 @@ export class ListingsCache {
 
     cacheListing(listing: ListingData) {
         if (!listing?.listing_id) return;
-        
-        // Log the agent key when caching a listing
-        console.log('Caching listing with agent key:', listing.listAgentKey);
-        
-        // Convert ListingId to ListingKey format
+        console.log('Caching listing with listing key:', listing.listing_id);
         const listingKey = listing.listing_id.replace('C', '');
         this.cachedListings.set(listingKey, listing);
     }

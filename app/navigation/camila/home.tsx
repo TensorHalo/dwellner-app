@@ -73,9 +73,9 @@ const HomeScreen = () => {
                         break;
                 }
         
-                if (success) {
-                    await AsyncStorage.removeItem('pendingUserData');
-                }
+                // if (success) {
+                //     await AsyncStorage.removeItem('pendingUserData');
+                // }
 
                 const currentUserData = await getUserData(pendingData.cognito_id);
                 if (currentUserData) {

@@ -22,6 +22,9 @@ export class MessageHandler {
         const responseGroup = Date.now();
         const { resp, show_listings_flag, model_preference, listing_ids } = response;
         
+        // Ensure model_preference retains all original fields from API
+        const preservedModelPreference = model_preference ? { ...model_preference } : null;
+        
         // Detect and handle different formats of the listing field
         let firstListing = null;
         let listing = response.listing;
@@ -48,12 +51,13 @@ export class MessageHandler {
             responseGroup,
             isTyping: false,
             displayedText: '',
-            modelPreference: model_preference,
+            // Use the preserved model preference with all fields intact
+            modelPreference: preservedModelPreference,
             listingIds: listing_ids
         }));
-
+    
         let listingsMessage: ChatMessage | undefined;
-
+    
         // Process listings only if we have the data and show_listings_flag is true
         if (show_listings_flag && firstListing) {
             try {
@@ -95,21 +99,22 @@ export class MessageHandler {
                     yearBuilt: firstListing.YearBuilt || null,
                     listAgentKey: firstListing.ListAgentKey || null
                 }];
-
+    
                 listingsMessage = {
                     id: Date.now() + textMessages.length,
                     text: '',
                     sender: 'bot',
                     listings,
                     responseGroup,
-                    modelPreference: model_preference,
+                    // Use the preserved model preference with all fields intact
+                    modelPreference: preservedModelPreference,
                     listingIds: listing_ids
                 };
             } catch (error) {
                 console.error('Error processing listing data:', error);
             }
         }
-
+    
         return { textMessages, listingsMessage };
     }
 

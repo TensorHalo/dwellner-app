@@ -100,7 +100,7 @@ const GetProModal = ({ visible, onClose }: GetProModalProps) => {
                                 </TouchableOpacity>
 
                                 <Text style={styles.subscriptionText}>
-                                    Auto-renews for <Text style={styles.priceText}>$33.90</Text>/month until canceled
+                                    Auto-renews for <Text style={styles.priceText}>$19.90</Text>/month until canceled
                                 </Text>
                             </View>
                         </Animated.View>

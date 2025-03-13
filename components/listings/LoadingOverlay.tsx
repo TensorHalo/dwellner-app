@@ -1,57 +1,97 @@
-// @/components/LoadingOverlay.tsx
-import React from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, Dimensions } from 'react-native';
+// @/components/listings/LoadingOverlay.tsx
+import React, { useEffect, useRef } from 'react';
+import { 
+  View, 
+  StyleSheet, 
+  Dimensions, 
+  Animated, 
+  Easing 
+} from 'react-native';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 interface LoadingOverlayProps {
-    progress: number;
-    visible: boolean;
+  progress: number;
+  visible: boolean;
 }
 
-const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ progress, visible }) => {
-    if (!visible) return null;
+const LoadingOverlay: React.FC<LoadingOverlayProps> = ({ visible }) => {
+  // Animation value for the shimmer effect
+  const shimmerAnim = useRef(new Animated.Value(0)).current;
+  
+  // Start animation when overlay becomes visible
+  useEffect(() => {
+    if (visible) {
+      // Create infinite loop animation for the shimmer effect
+      Animated.loop(
+        Animated.timing(shimmerAnim, {
+          toValue: 1,
+          duration: 1500,
+          easing: Easing.linear,
+          useNativeDriver: true
+        })
+      ).start();
+    } else {
+      // Stop animation when not visible
+      shimmerAnim.stopAnimation();
+    }
+    
+    return () => {
+      shimmerAnim.stopAnimation();
+    };
+  }, [visible, shimmerAnim]);
+  
+  // Interpolate shimmer animation
+  const shimmerTranslate = shimmerAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-SCREEN_WIDTH, SCREEN_WIDTH]
+  });
+  
+  if (!visible) return null;
 
-    return (
-        <View style={styles.container}>
-            <View style={styles.content}>
-                <ActivityIndicator size="large" color="#54B4AF" />
-                <Text style={styles.progressText}>{Math.round(progress)}%</Text>
-                <Text style={styles.loadingText}>Loading listings...</Text>
-            </View>
-        </View>
-    );
+  return (
+    <View style={styles.container} pointerEvents="none">
+      <View style={styles.cardMask}>
+        <Animated.View 
+          style={[
+            styles.shimmer, 
+            { transform: [{ translateX: shimmerTranslate }] }
+          ]} 
+        />
+      </View>
+    </View>
+  );
 };
 
 const styles = StyleSheet.create({
-    container: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        zIndex: 9999,
-    },
-    content: {
-        backgroundColor: 'white',
-        borderRadius: 16,
-        padding: 24,
-        alignItems: 'center',
-        width: '80%',
-        maxWidth: 300,
-    },
-    progressText: {
-        fontSize: 24,
-        fontWeight: '600',
-        marginTop: 16,
-        color: '#54B4AF',
-    },
-    loadingText: {
-        fontSize: 16,
-        color: '#666',
-        marginTop: 8,
-    },
+  container: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 50, // Position between the right panel and content
+    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 16
+  },
+  cardMask: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#E0E0E0',
+    borderRadius: 20,
+    overflow: 'hidden',
+    position: 'relative',
+  },
+  shimmer: {
+    width: '30%',
+    height: '200%',
+    backgroundColor: 'rgba(255, 255, 255, 0.3)',
+    position: 'absolute',
+    top: -5,
+    transform: [{ skewX: '-20deg' }, { translateX: -SCREEN_WIDTH }],
+  }
 });
 
 export default LoadingOverlay;

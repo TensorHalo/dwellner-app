@@ -253,18 +253,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                 console.error('Invalid listings data:', listings);
                 return;
             }
-
+    
             const navigationData = {
                 listings,
-                modelPreference,
+                modelPreference: modelPreference ? { ...modelPreference } : undefined,
                 listingIds
             };
-
+    
             const serializedData = JSON.stringify(navigationData);
             if (!serializedData) {
                 throw new Error('Failed to serialize navigation data');
             }
-
+    
             router.push({
                 pathname: '/navigation/camila/search-results',
                 params: {
@@ -301,20 +301,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                 }
             }
     
-            if (effectiveUserId && effectiveUserId.trim() !== '') {
-                try {
-                    console.log('Saving chat history for user:', effectiveUserId);
-                    await chatHistoryService.current.addChatHistory(
-                        effectiveUserId,
-                        sessionId,
-                        responseData
-                    );
-                } catch (historyError) {
-                    console.error('Failed to save chat history:', historyError);
-                }
-            } else {
-                console.log('No userId available for chat history');
-            }
+            // if (effectiveUserId && effectiveUserId.trim() !== '') {
+            //     try {
+            //         console.log('Saving chat history for user:', effectiveUserId);
+            //         await chatHistoryService.current.addChatHistory(
+            //             effectiveUserId,
+            //             sessionId,
+            //             responseData
+            //         );
+            //     } catch (historyError) {
+            //         console.error('Failed to save chat history:', historyError);
+            //     }
+            // } else {
+            //     console.log('No userId available for chat history');
+            // }
         } catch (error) {
             console.error('Error handling API response:', error);
             const errorMessage: ChatMessage = {

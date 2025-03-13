@@ -11,6 +11,7 @@ export interface ModelPreference {
     budget_max: number;
     property_type: string;
     related: string;
+    [key: string]: any;
 }
 
 export interface ChatMessage {
