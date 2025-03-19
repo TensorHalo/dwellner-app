@@ -24,7 +24,7 @@ import { ListingsCache } from '@/components/listings/ListingsCache';
 import { ListingsApi } from '@/components/listings/ListingsApi';
 import { getAuthTokens } from '@/utils/authTokens';
 import ListingMap from '@/components/listings/ListingMap';
-import ListingsPrefetcher from '@/components/listings/ListingsPrefetcher';
+// import ListingsPrefetcher from '@/components/listings/ListingsPrefetcher';
 import LoadingOverlay from '@/components/listings/LoadingOverlay';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NearbyFacilitiesGallery from '@/components/NearbyFacilitiesGallery';

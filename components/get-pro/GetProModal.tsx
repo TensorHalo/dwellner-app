@@ -1,9 +1,10 @@
 // @/components/get-pro/GetProModal.tsx
-import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated, Modal, TouchableWithoutFeedback } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Dimensions, Animated, Modal, TouchableWithoutFeedback, Image } from 'react-native';
 import React, { useEffect, useRef } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+const SCREEN_WIDTH = Dimensions.get('window').width;
 
 interface GetProModalProps {
     visible: boolean;
@@ -57,7 +58,8 @@ const GetProModal = ({ visible, onClose }: GetProModalProps) => {
                                 styles.modal,
                                 {
                                     transform: [{ translateY }],
-                                    paddingBottom: insets.bottom
+                                    paddingBottom: insets.bottom,
+                                    maxHeight: SCREEN_HEIGHT * 0.85,
                                 }
                             ]}
                         >
@@ -69,13 +71,13 @@ const GetProModal = ({ visible, onClose }: GetProModalProps) => {
                             </TouchableOpacity>
 
                             <View style={styles.content}>
+                                {/* Use PNG image from assets */}
                                 <View style={styles.logoContainer}>
-                                    <View style={styles.starSmallContainer}>
-                                        <View style={styles.starSmall} />
-                                    </View>
-                                    <View style={styles.starLargeContainer}>
-                                        <View style={styles.starLarge} />
-                                    </View>
+                                    <Image 
+                                        source={require('@/assets/get-pro.png')} 
+                                        style={styles.logoImage}
+                                        resizeMode="contain"
+                                    />
                                 </View>
 
                                 <Text style={styles.title}>Get Dwellner Pro</Text>
@@ -121,7 +123,8 @@ const styles = StyleSheet.create({
         backgroundColor: 'white',
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20,
-        minHeight: SCREEN_HEIGHT * 0.9,
+        minHeight: SCREEN_HEIGHT * 0.8,
+        maxHeight: SCREEN_HEIGHT * 0.85,
     },
     closeButton: {
         position: 'absolute',
@@ -151,39 +154,11 @@ const styles = StyleSheet.create({
         marginBottom: 20,
         alignItems: 'center',
         height: 40,
-    },
-    starSmallContainer: {
-        width: 24,
-        height: 24,
-        marginRight: 8,
         justifyContent: 'center',
-        alignItems: 'center',
     },
-    starLargeContainer: {
-        width: 32,
-        height: 32,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    starSmall: {
-        width: 18,
-        height: 18,
-        backgroundColor: '#54B4AF',
-        borderRadius: 2,
-        transform: [
-            { rotate: '45deg' },
-            { scale: 1.2 }
-        ],
-    },
-    starLarge: {
-        width: 28,
-        height: 28,
-        backgroundColor: '#54B4AF',
-        borderRadius: 3,
-        transform: [
-            { rotate: '45deg' },
-            { scale: 1.2 }
-        ],
+    logoImage: {
+        width: 71,
+        height: 71,
     },
     title: {
         fontSize: 32,

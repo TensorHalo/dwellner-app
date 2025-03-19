@@ -61,6 +61,23 @@ export class MessageHandler {
         // Process listings only if we have the data and show_listings_flag is true
         if (show_listings_flag && firstListing) {
             try {
+                // Determine if this is a rental property based on TotalActualRent field
+                const isRental = firstListing.TotalActualRent !== null && 
+                                 firstListing.TotalActualRent !== undefined;
+                
+                // Double-check with model preference if available
+                let finalIsRental = isRental;
+                if (preservedModelPreference && 
+                    preservedModelPreference.rent_or_purchase && 
+                    preservedModelPreference.rent_or_purchase.toLowerCase() === 'rent') {
+                    finalIsRental = true;
+                }
+                
+                // Log for debugging
+                console.log(`FirstListing in MessageHandler - isRental: ${finalIsRental}`);
+                console.log(`TotalActualRent: ${firstListing.TotalActualRent}, ListPrice: ${firstListing.ListPrice}`);
+                console.log(`Model preference rent_or_purchase: ${preservedModelPreference?.rent_or_purchase}`);
+                
                 // Create formatted listing data
                 const listings: ListingData[] = [{
                     listing_id: firstListing.ListingKey,
@@ -76,7 +93,7 @@ export class MessageHandler {
                         latitude: firstListing.Latitude || 0,
                         longitude: firstListing.Longitude || 0
                     },
-                    list_price: firstListing.ListPrice || firstListing.TotalActualRent || 0,
+                    list_price: finalIsRental ? firstListing.TotalActualRent : firstListing.ListPrice,
                     parking_features: this.parseJsonArray(firstListing.ParkingFeatures),
                     property_type: this.parseStructureType(firstListing.StructureType),
                     photos_count: firstListing.PhotosCount || 0,
@@ -84,6 +101,11 @@ export class MessageHandler {
                     media: Array.isArray(firstListing.Media) ? firstListing.Media :
                         typeof firstListing.Media === 'string' ? JSON.parse(firstListing.Media) : [],
                     tags: Array.isArray(firstListing.tags) ? firstListing.tags : [],
+                    isRental: finalIsRental, // Explicitly set the isRental flag
+                    
+                    // For direct access in debugging, keep the raw TotalActualRent and ListPrice
+                    TotalActualRent: firstListing.TotalActualRent,
+                    ListPrice: firstListing.ListPrice,
                     
                     // Add all additional fields with explicit null fallbacks
                     originalEntryTimestamp: firstListing.OriginalEntryTimestamp || null,
@@ -99,6 +121,8 @@ export class MessageHandler {
                     yearBuilt: firstListing.YearBuilt || null,
                     listAgentKey: firstListing.ListAgentKey || null
                 }];
+                
+                console.log(`Created listing object with isRental: ${listings[0].isRental}`);
     
                 listingsMessage = {
                     id: Date.now() + textMessages.length,

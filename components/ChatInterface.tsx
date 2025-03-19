@@ -2,7 +2,7 @@ import { View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform, Scro
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import React, { useState, useRef, useEffect } from 'react';
 import { Feather as FeatherIcon } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
+// import { Audio } from 'expo-av';
 import { useRouter } from 'expo-router';
 import { ListingData } from '@/types/listingData';
 import { ChatMessage, ModelPreference } from '@/types/chatInterface';
@@ -15,6 +15,7 @@ import { ChatHistoryService } from './chat-interface/ChatHistory';
 import PresetPrompts from './chat-interface/PresetPrompts';
 import { getCognitoUserId } from '@/utils/cognitoConfig';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Svg, { Path } from 'react-native-svg';
 
 // Get screen dimensions
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
@@ -22,6 +23,16 @@ const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 // Dynamic sizes based on screen dimensions
 const INPUT_HEIGHT = Math.max(40, Math.min(50, SCREEN_HEIGHT * 0.075));
 const BOTTOM_SPACING = Math.max(-10, Math.min(-20, SCREEN_HEIGHT * 0.012));
+
+// Send button SVG component
+const SendIcon = ({ color }) => (
+  <Svg width="27" height="27" viewBox="0 0 27 27" fill="none">
+    <Path
+      d="M13.5 27C15.3441 27 17.0779 26.6471 18.7015 25.9412C20.3338 25.2353 21.7721 24.2603 23.0162 23.0162C24.2603 21.7721 25.2353 20.3382 25.9412 18.7147C26.6471 17.0824 27 15.3441 27 13.5C27 11.6559 26.6471 9.92206 25.9412 8.29853C25.2353 6.66618 24.2603 5.22794 23.0162 3.98382C21.7721 2.73971 20.3338 1.76471 18.7015 1.05882C17.0691 0.352941 15.3309 0 13.4868 0C11.6426 0 9.90441 0.352941 8.27206 1.05882C6.64853 1.76471 5.21471 2.73971 3.97059 3.98382C2.73529 5.22794 1.76471 6.66618 1.05882 8.29853C0.352941 9.92206 0 11.6559 0 13.5C0 15.3441 0.352941 17.0824 1.05882 18.7147C1.76471 20.3382 2.73971 21.7721 3.98382 23.0162C5.22794 24.2603 6.66176 25.2353 8.28529 25.9412C9.91765 26.6471 11.6559 27 13.5 27ZM13.5265 20.3162C13.2265 20.3162 12.9794 20.2235 12.7853 20.0382C12.5912 19.8441 12.4941 19.5926 12.4941 19.2838V12.4941L12.6 9.59559L11.2368 11.2368L9.62206 12.8647C9.41912 13.0676 9.17647 13.1691 8.89412 13.1691C8.61176 13.1691 8.37353 13.0765 8.17941 12.8912C7.99412 12.6971 7.90147 12.4588 7.90147 12.1765C7.90147 11.8853 7.99412 11.6471 8.17941 11.4618L12.7324 6.93529C12.9882 6.67059 13.2529 6.53824 13.5265 6.53824C13.8 6.53824 14.0647 6.67059 14.3206 6.93529L18.8735 11.4618C19.0588 11.6559 19.1515 11.8941 19.1515 12.1765C19.1515 12.4588 19.0544 12.6971 18.8603 12.8912C18.6662 13.0765 18.4279 13.1691 18.1456 13.1691C17.8456 13.1691 17.6029 13.0676 17.4176 12.8647L15.8162 11.2368L14.4397 9.58235L14.5456 12.4941V19.2838C14.5456 19.5926 14.4485 19.8441 14.2544 20.0382C14.0691 20.2235 13.8265 20.3162 13.5265 20.3162Z"
+      fill={color}
+    />
+  </Svg>
+);
 
 interface ChatInterfaceProps {
     onChatStart: () => void;
@@ -31,8 +42,8 @@ interface ChatInterfaceProps {
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) => {
     const [message, setMessage] = useState('');
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-    const [isRecording, setIsRecording] = useState(false);
-    const [recording, setRecording] = useState<Audio.Recording | null>(null);
+    // const [isRecording, setIsRecording] = useState(false);
+    // const [recording, setRecording] = useState<Audio.Recording | null>(null);
     const [isShowingResponse, setIsShowingResponse] = useState(false);
     const [apiService, setApiService] = useState<ChatApiService | null>(null);
     const [showPresetPrompts, setShowPresetPrompts] = useState(true);
@@ -328,41 +339,41 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
         }
     };
 
-    const startRecording = async () => {
-        try {
-            const { status } = await Audio.requestPermissionsAsync();
-            if (status !== 'granted') {
-                alert('Permission to access microphone is required!');
-                return;
-            }
+    // const startRecording = async () => {
+    //     try {
+    //         const { status } = await Audio.requestPermissionsAsync();
+    //         if (status !== 'granted') {
+    //             alert('Permission to access microphone is required!');
+    //             return;
+    //         }
 
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
-            });
+    //         await Audio.setAudioModeAsync({
+    //             allowsRecordingIOS: true,
+    //             playsInSilentModeIOS: true,
+    //         });
 
-            const newRecording = new Audio.Recording();
-            await newRecording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-            await newRecording.startAsync();
-            setRecording(newRecording);
-            setIsRecording(true);
-        } catch (error) {
-            console.error('Failed to start recording:', error);
-        }
-    };
+    //         const newRecording = new Audio.Recording();
+    //         await newRecording.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+    //         await newRecording.startAsync();
+    //         setRecording(newRecording);
+    //         setIsRecording(true);
+    //     } catch (error) {
+    //         console.error('Failed to start recording:', error);
+    //     }
+    // };
 
-    const stopRecording = async () => {
-        try {
-            if (!recording) return;
-            await recording.stopAndUnloadAsync();
-            const uri = recording.getURI();
-            console.log('Recording stopped and stored at', uri);
-            setIsRecording(false);
-            setRecording(null);
-        } catch (error) {
-            console.error('Failed to stop recording:', error);
-        }
-    };
+    // const stopRecording = async () => {
+    //     try {
+    //         if (!recording) return;
+    //         await recording.stopAndUnloadAsync();
+    //         const uri = recording.getURI();
+    //         console.log('Recording stopped and stored at', uri);
+    //         setIsRecording(false);
+    //         setRecording(null);
+    //     } catch (error) {
+    //         console.error('Failed to stop recording:', error);
+    //     }
+    // };
 
     const sendMessage = async () => {
         if (!message.trim() || !apiService) {
@@ -447,7 +458,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                     { paddingBottom: insets.bottom + BOTTOM_SPACING, bottom: keyboardShown ? 0 : footerHeight }
                 ]}>
                     <View style={styles.inputWrapper}>
-                        <TouchableOpacity 
+                        {/* <TouchableOpacity 
                             onPress={isRecording ? stopRecording : startRecording}
                             className="pr-3"
                         >
@@ -457,14 +468,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                                 color={isRecording ? "red" : "black"} 
                             />
                         </TouchableOpacity>
-                        
+                         */}
                         <TextInput
-                            className="flex-1 text-base leading-5"
+                            className="flex-1 text-base"
                             placeholder="Type your message..."
                             multiline
                             value={message}
                             onChangeText={setMessage}
-                            style={{ textAlignVertical: 'center' }}
+                            style={styles.textInput}
                         />
                         
                         <TouchableOpacity 
@@ -472,11 +483,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onChatStart, userId }) =>
                             className="pl-3"
                             disabled={!message.trim() || !apiService}
                         >
-                            <FeatherIcon 
-                                name="send" 
-                                size={24} 
-                                color={message.trim() && apiService ? "#54B4AF" : "#CCCCCC"} 
-                            />
+                            <SendIcon color={message.trim() && apiService ? "#00B1B1" : "#CCCCCC"} />
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -491,10 +498,9 @@ const styles = StyleSheet.create({
         left: 0,
         right: 0,
         paddingHorizontal: 16,
-        paddingTop: 8,
+        paddingTop: 10,
         backgroundColor: 'white',
-        borderTopWidth: 1,
-        borderTopColor: '#F0F0F0',
+        // Removed borderTopWidth and borderTopColor to eliminate the separator line
     },
     inputWrapper: {
         flexDirection: 'row',
@@ -504,6 +510,12 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 8,
         minHeight: INPUT_HEIGHT,
+    },
+    textInput: {
+        textAlignVertical: 'center',
+        paddingTop: 8,
+        paddingBottom: 8,
+        minHeight: INPUT_HEIGHT - 16, // Subtract padding to center text properly
     }
 });
 

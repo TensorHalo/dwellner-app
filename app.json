@@ -7,11 +7,11 @@
     "icon": "./assets/dwellnerlogo.png",
     "scheme": "camila",
     "userInterfaceStyle": "light",
-    // "splash": {
-    //   "image": "./assets/dwellnerlogo.png",
-    //   "resizeMode": "contain",
-    //   "backgroundColor": "#ffffff"
-    // },
+    "splash": {
+      "image": "./assets/dwellnerlogo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],

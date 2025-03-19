@@ -33,6 +33,11 @@ export interface ListingData {
     tags: string[];
     isRental?: boolean;
     lot_size_area?: number | null;
+    
+    // Raw API fields for debugging
+    TotalActualRent?: number | null;
+    ListPrice?: number | null;
+    
     // Additional Fields
     originalEntryTimestamp?: string;
     modificationTimestamp?: string;

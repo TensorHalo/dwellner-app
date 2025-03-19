@@ -58,6 +58,10 @@ export class ListingsViewAllApi {
         // Determine if this is a rental or sale listing
         const isRental = response.TotalActualRent !== null && response.TotalActualRent !== undefined;
         
+        // Log for debugging
+        console.log(`ViewAll API - Listing ${response.ListingKey} - isRental: ${isRental}`);
+        console.log(`TotalActualRent: ${response.TotalActualRent}, ListPrice: ${response.ListPrice}`);
+        
         return {
             listing_id: response.ListingKey,
             address: response.UnparsedAddress,
@@ -72,24 +76,41 @@ export class ListingsViewAllApi {
                 latitude: response.Latitude,
                 longitude: response.Longitude
             },
-            list_price: response.ListPrice || response.TotalActualRent,
+            list_price: isRental ? response.TotalActualRent : response.ListPrice,
             parking_features: this.parseJsonString(response.ParkingFeatures),
             property_type: this.parseJsonString(response.StructureType)[0] || 'Unknown',
             photos_count: response.PhotosCount || 0,
             listing_url: response.ListingURL || '',
             media: Array.isArray(response.Media) ? response.Media : [],
             tags: [], // No tags in view_all API response
-            isRental: isRental,
-            lot_size_area: response.LotSizeArea || null
+            isRental: isRental, // Explicitly set the isRental flag
+            lot_size_area: response.LotSizeArea || null,
+            // Add additional fields that might be available in the view_all API
+            originalEntryTimestamp: response.OriginalEntryTimestamp || null,
+            modificationTimestamp: response.ModificationTimestamp || null,
+            publicRemarks: response.PublicRemarks || null,
+            heating: this.parseJsonString(response.Heating),
+            basement: this.parseJsonString(response.Basement),
+            structureType: this.parseJsonString(response.StructureType),
+            bedroomsBelowGrade: response.BedroomsBelowGrade || null,
+            bedroomsAboveGrade: response.BedroomsAboveGrade || null,
+            bathroomsPartial: response.BathroomsPartial || null,
+            subType: response.PropertySubType || null,
+            yearBuilt: response.YearBuilt || null,
+            listAgentKey: response.ListAgentKey || null
         };
     }
 
     private parseJsonString(value: string | any[]): any[] {
         if (Array.isArray(value)) return value;
-        try {
-            return JSON.parse(value);
-        } catch {
-            return [];
+        if (typeof value === 'string') {
+            try {
+                const parsed = JSON.parse(value);
+                return Array.isArray(parsed) ? parsed : [];
+            } catch {
+                return [];
+            }
         }
+        return [];
     }
 }

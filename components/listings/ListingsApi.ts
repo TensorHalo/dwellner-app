@@ -56,8 +56,12 @@ export class ListingsApi {
     }
 
     private transformResponseToListingData(response: any): ListingData {
-        // Determine if this is a rental or sale listing
+        // Determine if this is a rental or sale listing based on TotalActualRent field
         const isRental = response.TotalActualRent !== null && response.TotalActualRent !== undefined;
+        
+        // Log for debugging
+        console.log(`Transforming listing ${response.ListingKey} - isRental: ${isRental}`);
+        console.log(`TotalActualRent: ${response.TotalActualRent}, ListPrice: ${response.ListPrice}`);
         
         return {
             listing_id: response.ListingKey,
@@ -73,14 +77,14 @@ export class ListingsApi {
                 latitude: response.Latitude,
                 longitude: response.Longitude
             },
-            list_price: response.ListPrice || response.TotalActualRent,
+            list_price: isRental ? response.TotalActualRent : response.ListPrice,
             parking_features: this.parseJsonString(response.ParkingFeatures),
             property_type: this.parseJsonString(response.StructureType)[0] || 'Unknown',
             photos_count: response.PhotosCount || 0,
             listing_url: response.ListingURL || '',
             media: Array.isArray(response.Media) ? response.Media : [],
             tags: Array.isArray(response.tags) ? response.tags : [],
-            isRental: isRental,
+            isRental: isRental, // Explicitly set the isRental flag
             lot_size_area: response.LotSizeArea || null,
             // New fields
             originalEntryTimestamp: response.OriginalEntryTimestamp,
@@ -109,18 +113,5 @@ export class ListingsApi {
             }
         }
         return [];
-    }
-    
-    private parseStructureType(value: string | any[]): string {
-        if (Array.isArray(value)) return value[0] || 'Unknown';
-        if (typeof value === 'string') {
-            try {
-                const parsed = JSON.parse(value);
-                return Array.isArray(parsed) ? parsed[0] : 'Unknown';
-            } catch {
-                return value || 'Unknown';
-            }
-        }
-        return 'Unknown';
     }
 }

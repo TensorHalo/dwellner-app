@@ -156,24 +156,27 @@ const HomeScreen = () => {
                             height: 100,
                             backgroundColor: '#FFFFFF',
                         },
-                        headerTitleContainerStyle: {
-                            paddingVertical: 15,
-                        },
                         gestureEnabled: false,
+                        headerTitleAlign: 'center',  // Add this to use the built-in alignment
                         headerTitle: () => (
                             !isSidebarVisible && (
-                                isInChat ? (
-                                    <Pressable onPress={handleChatRefresh}>
-                                        <Text className="text-lg font-semibold">Camila</Text>
-                                    </Pressable>
-                                ) : (
-                                    <TouchableOpacity 
-                                        onPress={() => setProModalVisible(true)}
-                                        className="bg-[#54B4AF] px-6 py-1.5 rounded-xl mx-auto"
-                                    >
-                                        <Text className="text-white font-medium text-base">Get Pro +</Text>
-                                    </TouchableOpacity>
-                                )
+                                <View style={{ 
+                                    // Remove position absolute and related positioning 
+                                    // Let the native header handle positioning
+                                }}>
+                                    {isInChat ? (
+                                        <Pressable onPress={handleChatRefresh}>
+                                            <Text className="text-lg font-semibold">Camila</Text>
+                                        </Pressable>
+                                    ) : (
+                                        <TouchableOpacity 
+                                            onPress={() => setProModalVisible(true)}
+                                            className="bg-[#54B4AF] px-6 py-1.5 rounded-xl"
+                                        >
+                                            <Text className="text-white font-medium text-base">Get Pro +</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                </View>
                             )
                         ),
                         headerLeft: () => (

@@ -58,7 +58,9 @@ const ListingMap: React.FC<ListingMapProps> = ({
     const [accessToken, setAccessToken] = useState<string | null>(null);
     const [idToken, setIdToken] = useState<string | null>(null);
     const isMounted = useRef(true);
-
+    const mapRef = useRef<MapView | null>(null);
+    const [listingId, setListingId] = useState<string>('');
+    
     useEffect(() => {
         return () => {
             isMounted.current = false;
@@ -82,22 +84,45 @@ const ListingMap: React.FC<ListingMapProps> = ({
         initTokens();
     }, []);
 
+    // Reset map and region when listing changes
     useEffect(() => {
-        if (listing.coordinates) {
-            setCurrentRegion({
+        if (listing?.coordinates) {
+            // Set more zoomed out region
+            const newRegion = {
                 latitude: listing.coordinates.latitude,
                 longitude: listing.coordinates.longitude,
-                latitudeDelta: 0.01,
-                longitudeDelta: 0.01,
-            });
+                latitudeDelta: 0.02, // Increased zoom out (from 0.01 to 0.02)
+                longitudeDelta: 0.02, // Increased zoom out (from 0.01 to 0.02)
+            };
+            
+            setCurrentRegion(newRegion);
+            
+            // Check if listing has changed
+            if (listingId !== listing.listing_id) {
+                setListingId(listing.listing_id);
+                setFacilities([]); // Reset facilities when listing changes
+                
+                // Reset map view to initial position if map is ready and ref exists
+                if (mapReady && mapRef.current) {
+                    mapRef.current.animateToRegion(newRegion, 100);
+                }
+            }
         }
-    }, [listing]);
+    }, [listing, listingId]);
 
+    // Fetch facilities when visible and tokens are available
     useEffect(() => {
         if (visible && accessToken && idToken && listing.coordinates) {
             fetchNearbyFacilities();
         }
-    }, [visible, accessToken, idToken, listing.coordinates]);
+    }, [visible, accessToken, idToken, listing.coordinates, listingId]);
+
+    // Reset map view when the map becomes ready
+    useEffect(() => {
+        if (mapReady && mapRef.current && currentRegion) {
+            mapRef.current.animateToRegion(currentRegion, 100);
+        }
+    }, [mapReady, currentRegion]);
 
     const fetchNearbyFacilities = async () => {
         if (!listing.coordinates || !accessToken || !idToken) {
@@ -193,6 +218,9 @@ const ListingMap: React.FC<ListingMapProps> = ({
 
     if (!visible || !currentRegion) return null;
 
+    // Generate a unique key for MapView to force re-render when listing changes
+    const mapKey = `map-${listing.listing_id || 'default'}`;
+
     return (
         <View style={styles.container}>
             {showHeader && (
@@ -202,6 +230,8 @@ const ListingMap: React.FC<ListingMapProps> = ({
             )}
 
             <MapView
+                key={mapKey}
+                ref={mapRef}
                 style={styles.map}
                 initialRegion={currentRegion}
                 onMapReady={() => setMapReady(true)}
@@ -250,12 +280,6 @@ const ListingMap: React.FC<ListingMapProps> = ({
                     </Marker>
                 ))}
             </MapView>
-
-            {/* <View style={styles.facilitiesCountContainer}>
-                <Text style={styles.facilitiesCountText}>
-                    {facilities.length} nearby places
-                </Text>
-            </View> */}
 
             {onClose && (
                 <TouchableOpacity 
@@ -314,27 +338,6 @@ const styles = StyleSheet.create({
         borderRadius: 10,
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    facilitiesCountContainer: {
-        position: 'absolute',
-        bottom: 16,
-        alignSelf: 'center',
-        backgroundColor: 'white',
-        borderRadius: 20,
-        paddingVertical: 8,
-        paddingHorizontal: 16,
-        shadowColor: "#000",
-        shadowOffset: {
-            width: 0,
-            height: 2,
-        },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 5,
-    },
-    facilitiesCountText: {
-        fontWeight: '600',
-        fontSize: 14,
     },
     closeButton: {
         position: 'absolute',

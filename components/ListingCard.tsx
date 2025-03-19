@@ -44,6 +44,30 @@ const ListingCard = ({
 }: ListingCardProps) => {
     const mediaItems = listing.media || [];
     const address = listing?.address || 'Address not available';
+    const [isRental, setIsRental] = useState<boolean>(false);
+    
+    // Initialize isRental state
+    useEffect(() => {
+        let rentalStatus = false;
+        
+        // First check the explicit isRental flag
+        if (listing.isRental !== undefined) {
+            rentalStatus = listing.isRental;
+        } 
+        // Then check the raw API fields if available
+        else if (listing.TotalActualRent !== undefined) {
+            rentalStatus = listing.TotalActualRent !== null;
+        }
+        // Finally check property type as fallback
+        else if (listing.property_type) {
+            const propertyType = listing.property_type.toLowerCase();
+            if (propertyType.includes('apartment') || propertyType.includes('condo')) {
+                rentalStatus = true;
+            }
+        }
+        
+        setIsRental(rentalStatus);
+    }, [listing.listing_id, listing.isRental, listing.TotalActualRent]);
     
     // Track loading and error states for each image
     const [imageStates, setImageStates] = useState<{[key: string]: {loading: boolean, error: boolean}}>({});
@@ -352,31 +376,20 @@ const ListingCard = ({
             </View>
 
             <View className="p-4">
-                {/* Top row with address and price/type */}
-                <View style={styles.headerContainer}>
-                    {/* Address section with touchable link */}
-                    {/* <TouchableOpacity 
-                        onPress={onAddressPress}
-                        style={styles.addressContainer}
-                        activeOpacity={0.7}
-                    > */}
-                    <Text 
-                        numberOfLines={2}
-                        className="text-black font-bold text-lg"
-                    >
-                        {address}
+                {/* Address section */}
+                <Text 
+                    numberOfLines={2}
+                    className="text-black font-bold text-lg mb-1"
+                >
+                    {address}
+                </Text>
+                
+                {/* Price section - New layout */}
+                <View className="mb-2">
+                    <Text style={styles.priceText}>
+                        {formatPrice()}
+                        {isRental && <Text style={styles.monthlyText}> monthly</Text>}
                     </Text>
-                    {/* </TouchableOpacity> */}
-                    
-                    {/* Price and type section */}
-                    <View style={styles.priceTypeContainer}>
-                        <Text style={styles.priceText}>
-                            {formatPrice()}
-                        </Text>
-                        <Text style={styles.propertyTypeText}>
-                            {listing?.property_type || 'Property'}
-                        </Text>
-                    </View>
                 </View>
                 
                 {/* Amenities section */}
@@ -385,6 +398,11 @@ const ListingCard = ({
                         {listing?.bedrooms_total || 0} bedrooms · {listing?.bathrooms_total || 0} bathrooms · {(listing?.parking_features || []).length} parking
                     </Text>
                 </View>
+                
+                {/* Property type */}
+                <Text style={styles.propertyTypeText}>
+                    {listing?.property_type || 'Property'}
+                </Text>
                 
                 {/* Square footage - only shown if available */}
                 {listing?.lot_size_area && (
@@ -521,29 +539,20 @@ const styles = StyleSheet.create({
         width: 100,
         height: 40,
     },
-    // Property details styles
-    headerContainer: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 0,
-    },
-    addressContainer: {
-        flex: 1,
-        paddingRight: 12,
-    },
-    priceTypeContainer: {
-        alignItems: 'flex-end',
-    },
+    // Updated Property details styles
     priceText: {
-        fontSize: 14,
+        fontSize: 18, // Larger font size
         fontWeight: 'bold',
         color: '#000',
-        marginBottom: 2,
+    },
+    monthlyText: {
+        fontWeight: 'normal',
+        fontSize: 16,
     },
     propertyTypeText: {
         fontSize: 14,
         color: '#666',
+        marginBottom: 4,
     },
     amenitiesContainer: {
         marginBottom: 4,
