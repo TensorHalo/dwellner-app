@@ -9,10 +9,10 @@ export class ChatHistoryService {
 
     constructor() {
         this.client = new DynamoDBClient({
-            region: "us-east-1",
+            region: "ca-central-1",
             credentials: {
-                accessKeyId: "AKIAWDARUP7MHJ5IRB3Y",
-                secretAccessKey: "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"
+                accessKeyId: 'AKIA3PW5YS7N3QIKX55D',
+                secretAccessKey: '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'
             }
         });
     }

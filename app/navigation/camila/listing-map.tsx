@@ -68,14 +68,15 @@ const ListingMap: React.FC<ListingMapProps> = ({ listing, visible, onClose }) =>
             
             const { latitude, longitude } = listing.coordinates;
             
-            const apiUrl = `https://api.dwellner.ca/api/v0/listing/details/nearby/${latitude},${longitude}`;
+            const apiUrl = `http://35.183.46.220:8080/api/v0/listing/details/nearby/${latitude},${longitude}`;
             
             const response = await fetch(apiUrl, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${tokens.accessToken}`,
-                    'id-token': tokens.idToken
+                    'id-token': tokens.idToken,
+                    'Connection': 'keep-alive'
                 }
             });
 

@@ -9,8 +9,8 @@ WebBrowser.maybeCompleteAuthSession();
 
 // Configuration constants
 const CONFIG = {
-  COGNITO_DOMAIN: "https://us-east-1whcek9kp8.auth.us-east-1.amazoncognito.com",
-  COGNITO_CLIENT_ID: "25lbf1t46emi9b4g51c6du5kkn",
+  COGNITO_DOMAIN: "https://ca-central-1dpfkbnlbo.auth.ca-central-1.amazoncognito.com",
+  COGNITO_CLIENT_ID: "5k58qlhffgpvhp5l89gnghlgdo",
   REDIRECT_URI: "camila://oauth"
 };
 

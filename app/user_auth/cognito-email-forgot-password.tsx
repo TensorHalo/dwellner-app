@@ -14,9 +14,9 @@ interface Params {
 }
 
 const poolConfig = {
-    UserPoolId: 'us-east-1_wHcEk9kP8',
-    ClientId: '25lbf1t46emi9b4g51c6du5kkn',
-    Region: 'us-east-1'
+    UserPoolId: 'ca-central-1_dPfkBnLBO',
+    ClientId: '5k58qlhffgpvhp5l89gnghlgdo',
+    Region: 'ca-central-1'
 };
 
 const userPool = new CognitoUserPool(poolConfig);

@@ -35,3 +35,9 @@
 <!-- Push Notifications -->
 <key>NSUserTrackingUsageDescription</key>
 <string>We use your data to provide personalized property recommendations and improve your experience.</string>
+
+<key>NSAppTransportSecurity</key>
+<dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <true/>
+</dict>

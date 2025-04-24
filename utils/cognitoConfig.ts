@@ -11,9 +11,9 @@ import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession
 // };
 
 export const poolConfig = {
-    UserPoolId: 'us-east-1_wHcEk9kP8',
-    ClientId: '25lbf1t46emi9b4g51c6du5kkn',
-    Region: 'us-east-1',
+    UserPoolId: 'ca-central-1_dPfkBnLBO',
+    ClientId: '5k58qlhffgpvhp5l89gnghlgdo',
+    Region: 'ca-central-1',
     AuthenticationFlowType: 'CUSTOM_AUTH'
 };
 
@@ -25,8 +25,8 @@ export const userPool = new CognitoUserPool({
 AWS.config.update({
     region: poolConfig.Region,
     credentials: new AWS.Credentials({
-        accessKeyId: 'AKIAWDARUP7MHJ5IRB3Y',
-        secretAccessKey: '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'
+        accessKeyId: 'AKIA3PW5YS7N3QIKX55D',
+        secretAccessKey: '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'
     })
 });
 

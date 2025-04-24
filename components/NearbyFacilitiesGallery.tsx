@@ -70,14 +70,15 @@ const NearbyFacilitiesGallery: React.FC<NearbyFacilitiesGalleryProps> = ({
             setLoading(true);
             const { latitude, longitude } = listing.coordinates;
             
-            const apiUrl = `https://api.dwellner.ca/api/v0/listing/details/nearby/${latitude},${longitude}`;
+            const apiUrl = `http://35.183.46.220:8080/api/v0/listing/details/nearby/${latitude},${longitude}`;
             
             const response = await fetch(apiUrl, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${accessToken}`,
-                    'id-token': idToken
+                    'id-token': idToken,
+                    'Connection': 'keep-alive'
                 }
             });
 

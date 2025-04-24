@@ -323,7 +323,7 @@ const styles = StyleSheet.create({
     },
     customActionContainer: {
         position: 'absolute',
-        bottom: 256,
+        bottom: 300,
         left: 10,
         zIndex: 2,
         flexDirection: 'row',

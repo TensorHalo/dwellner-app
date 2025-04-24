@@ -3,7 +3,8 @@ import { ApiResponse } from "@/types/chatInterface";
 import { getAuthTokens } from "@/utils/authTokens";
 
 const API_CONFIG = {
-    CHAT_API_ENDPOINT: 'https://api.dwellner.ca/api/v0/text_v4'
+    // CHAT_API_ENDPOINT: 'https://api.dwellner.ca/api/v0/text_v4'
+    CHAT_API_ENDPOINT: 'http://35.183.46.220:8080/api/v0/text_v4'
 };
 
 const MAX_RETRIES = 3;
@@ -68,7 +69,8 @@ export class ChatApiService {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json, text/plain, */*',
                     'Authorization': `Bearer ${this.accessToken}`,
-                    'id-token': this.idToken
+                    'id-token': this.idToken,
+                    'Connection': 'keep-alive'
                 },
                 body: requestBody
             });

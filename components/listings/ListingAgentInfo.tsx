@@ -45,13 +45,14 @@ const ListingAgentInfo: React.FC<ListingAgentInfoProps> = ({ listAgentKey }) => 
                 throw new Error('Authentication tokens not available');
             }
 
-            const apiUrl = `https://api.dwellner.ca/api/v0/crea/lead-details/${agentKey}`;
+            const apiUrl = `http://35.183.46.220:8080/api/v0/crea/lead-details/${agentKey}`;
             const response = await fetch(apiUrl, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${tokens.accessToken}`,
-                    'id-token': tokens.idToken
+                    'id-token': tokens.idToken,
+                    'Connection': 'keep-alive'
                 }
             });
 
