@@ -4,7 +4,7 @@ import { getAuthTokens } from "@/utils/authTokens";
 
 const API_CONFIG = {
     // CHAT_API_ENDPOINT: 'https://api.dwellner.ca/api/v0/text_v4'
-    CHAT_API_ENDPOINT: 'http://35.183.46.220:8080/api/v0/text_v4'
+    CHAT_API_ENDPOINT: 'https://api.deephome.ca/api/v0/text_v4'
 };
 
 const MAX_RETRIES = 3;
