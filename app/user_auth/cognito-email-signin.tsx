@@ -139,7 +139,7 @@ const CognitoSignIn = () => {
 
                     {/* Title */}
                     <Text className="text-2xl font-semibold text-center mb-8">
-                        Welcome to Dwellner
+                        Welcome to DeepHome
                     </Text>
 
                     {/* Password Input Group */}

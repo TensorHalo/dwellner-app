@@ -1,54 +1,36 @@
 // @/types/listingData.ts
 export interface ListingData {
+    // Basic identification
     listing_id: string;
+    
+    // Address and location
     address: string;
     city: string;
-    architectural_style: string[];
-    bathrooms_partial: number | null;
-    bathrooms_total: number;
-    bedrooms_total: number;
-    common_interest: string;
     country: string;
     coordinates: {
         latitude: number;
         longitude: number;
     };
+    
+    // Basic property info
     list_price: number;
-    parking_features: string[];
     property_type: string;
+    bathrooms_total: number;
+    bedrooms_total: number;
+    bathrooms_partial: number | null;
     photos_count: number;
+    
+    // Media URLs (full CDN URLs)
+    media: string[]; // Array of full image URLs from CDN
+    
+    // Required legacy fields (minimal)
+    architectural_style: string[];
+    common_interest: string;
+    parking_features: string[];
     listing_url: string;
-    media: Array<{
-        MediaKey: string;
-        ResourceRecordKey: string;
-        LongDescription: string | null;
-        MediaURL: string;
-        ModificationTimestamp: string;
-        Order: number;
-        PreferredPhotoYN: boolean;
-        ResourceRecordId: string;
-        ResourceName: string;
-        MediaCategory: string;
-    }>;
     tags: string[];
     isRental?: boolean;
-    lot_size_area?: number | null;
     
-    // Raw API fields for debugging
-    TotalActualRent?: number | null;
-    ListPrice?: number | null;
-    
-    // Additional Fields
-    originalEntryTimestamp?: string;
-    modificationTimestamp?: string;
-    publicRemarks?: string;
-    heating?: string[];
-    basement?: string[];
-    structureType?: string[];
-    bedroomsBelowGrade?: number;
-    bedroomsAboveGrade?: number;
-    bathroomsPartial?: number;
-    subType?: string;
-    yearBuilt?: number;
-    listAgentKey?: string | null;
+    // Cache ALL raw data from new API for future use
+    rawData?: any; // Stores complete API response data for future access
 }

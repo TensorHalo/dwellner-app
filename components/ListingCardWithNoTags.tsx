@@ -30,6 +30,7 @@ interface ListingCardWithNoTagsProps {
     onClose?: () => void;
     onFavorite?: () => void;
     onAddressPress?: () => void;
+    onPress?: () => void;
 }
 
 const ListingCardWithNoTags = ({ 
@@ -40,15 +41,16 @@ const ListingCardWithNoTags = ({
     onMediaIndexChange,
     onClose,
     onFavorite,
-    onAddressPress
+    onAddressPress,
+    onPress
 }: ListingCardWithNoTagsProps) => {
+    // Use media URLs directly (they should already be full CDN URLs from MessageHandler/ListingsApi)
     const mediaItems = listing.media || [];
     const address = listing?.address || 'Address not available';
     const [isRental, setIsRental] = useState<boolean>(false);
     
     // Initialize isRental state
     useEffect(() => {
-        // Determine if it's a rental property
         let rentalStatus = false;
         
         // First check the explicit isRental flag
@@ -88,12 +90,13 @@ const ListingCardWithNoTags = ({
     // Initialize image states on component mount or when mediaItems change
     useEffect(() => {
         const initialStates: {[key: string]: {loading: boolean, error: boolean}} = {};
-        mediaItems.forEach(item => {
-            if (item?.MediaURL) {
-                initialStates[item.MediaURL] = { loading: true, error: false };
+        mediaItems.forEach((url, index) => {
+            if (url) {
+                initialStates[url] = { loading: true, error: false };
             }
         });
         setImageStates(initialStates);
+        console.log('ListingCardWithNoTags mediaItems:', mediaItems);
     }, [JSON.stringify(mediaItems)]);
 
     // Effect to animate modal entrance and exit
@@ -127,16 +130,6 @@ const ListingCardWithNoTags = ({
         }
     }, [galleryVisible, fadeAnim, scaleAnim]);
 
-    // Effect to sync the gallery index with the card index
-    useEffect(() => {
-        if (galleryVisible && galleryFlatListRef.current) {
-            galleryFlatListRef.current.scrollToIndex({
-                index: galleryIndex,
-                animated: false
-            });
-        }
-    }, [galleryVisible, galleryIndex]);
-
     const handleMediaScroll = (event: any) => {
         const contentOffset = event.nativeEvent.contentOffset.x;
         const index = Math.round(contentOffset / (SCREEN_WIDTH - 32));
@@ -161,17 +154,17 @@ const ListingCardWithNoTags = ({
         }
     };
 
-    const handleImageLoad = (mediaURL: string) => {
+    const handleImageLoad = (imageUrl: string) => {
         setImageStates(prev => ({
             ...prev,
-            [mediaURL]: { ...prev[mediaURL], loading: false, error: false }
+            [imageUrl]: { ...prev[imageUrl], loading: false, error: false }
         }));
     };
 
-    const handleImageError = (mediaURL: string) => {
+    const handleImageError = (imageUrl: string) => {
         setImageStates(prev => ({
             ...prev,
-            [mediaURL]: { ...prev[mediaURL], loading: false, error: true }
+            [imageUrl]: { ...prev[imageUrl], loading: false, error: true }
         }));
     };
 
@@ -190,53 +183,40 @@ const ListingCardWithNoTags = ({
         return `$${listing.list_price.toLocaleString()} CAD`;
     };
 
-    const RealtorWatermark = () => {
-        const handlePress = () => {
-            if (!listing?.listing_url) return;
-            
-            const url = listing.listing_url.startsWith('http') 
-                ? listing.listing_url 
-                : `https://${listing.listing_url}`;
+    // Parse address for display - split into street address and city info
+    const parseAddress = () => {
+        try {
+            // Check if rawData has parsed address info
+            if (listing.rawData?.parsedAddress) {
+                const addr = listing.rawData.parsedAddress;
+                const streetParts = [];
+                if (addr.streetNumber) streetParts.push(addr.streetNumber);
+                if (addr.streetName) streetParts.push(addr.streetName);
+                if (addr.streetSuffix) streetParts.push(addr.streetSuffix);
+                if (addr.streetDirection) streetParts.push(addr.streetDirection);
+                if (addr.unitNumber) streetParts.push(`Unit ${addr.unitNumber}`);
                 
-            Linking.openURL(url).catch((err) => {
-                console.error('Error opening listing URL:', err);
-            });
+                const streetAddress = streetParts.join(' ');
+                const cityInfo = [addr.city, addr.state, addr.zip].filter(Boolean).join(', ');
+                
+                return {
+                    streetAddress: streetAddress || listing.address,
+                    cityInfo: cityInfo
+                };
+            }
+        } catch (error) {
+            console.warn('Error parsing address:', error);
+        }
+        
+        // Fallback to original address
+        return {
+            streetAddress: listing.address,
+            cityInfo: listing.city || ''
         };
-    
-        return (
-            <TouchableOpacity 
-                onPress={handlePress}
-                style={styles.watermarkContainer}
-                activeOpacity={0.8}
-            >
-                <Image
-                    source={require('@/assets/powered_by_realtor.png')}
-                    style={styles.watermarkImage}
-                    resizeMode="contain"
-                />
-            </TouchableOpacity>
-        );
     };
 
-    const renderMediaItem = ({ item, index }: { item: any, index: number }) => {
-        if (item.MediaCategory && item.MediaCategory.toLowerCase() !== "property photo") {
-            return (
-                <View style={styles.mediaContainer}>
-                    <TouchableOpacity
-                        style={styles.videoContainer}
-                        onPress={() => Linking.openURL(item.MediaURL)}
-                    >
-                        <View className="items-center">
-                            <Feather name="play-circle" size={48} color="white" />
-                            <Text className="text-white mt-4">Watch Virtual Tour</Text>
-                        </View>
-                    </TouchableOpacity>
-                    <RealtorWatermark />
-                </View>
-            );
-        }
-
-        const hasError = imageStates[item?.MediaURL]?.error;
+    const renderMediaItem = ({ item, index }: { item: string, index: number }) => {
+        const hasError = imageStates[item]?.error;
 
         return (
             <View style={styles.mediaContainer}>
@@ -256,37 +236,20 @@ const ListingCardWithNoTags = ({
                         onPress={() => openGallery(index)}
                     >
                         <Image
-                            source={{ uri: item.MediaURL }}
+                            source={{ uri: item }}
                             style={styles.mediaImage}
-                            resizeMode="contain"
-                            onLoad={() => handleImageLoad(item.MediaURL)}
-                            onError={() => handleImageError(item.MediaURL)}
+                            resizeMode="cover"
+                            onLoad={() => handleImageLoad(item)}
+                            onError={() => handleImageError(item)}
                         />
                     </TouchableOpacity>
                 )}
-                <RealtorWatermark />
             </View>
         );
     };
 
-    const renderGalleryItem = ({ item }: { item: any }) => {
-        if (item.MediaCategory && item.MediaCategory.toLowerCase() !== "property photo") {
-            return (
-                <View style={styles.galleryItemContainer}>
-                    <TouchableOpacity
-                        style={styles.videoContainer}
-                        onPress={() => Linking.openURL(item.MediaURL)}
-                    >
-                        <View className="items-center">
-                            <Feather name="play-circle" size={64} color="white" />
-                            <Text className="text-white mt-4 text-lg">Watch Virtual Tour</Text>
-                        </View>
-                    </TouchableOpacity>
-                </View>
-            );
-        }
-
-        const hasError = imageStates[item?.MediaURL]?.error;
+    const renderGalleryItem = ({ item }: { item: string }) => {
+        const hasError = imageStates[item]?.error;
 
         return (
             <View style={styles.galleryItemContainer}>
@@ -301,7 +264,7 @@ const ListingCardWithNoTags = ({
                 
                 {!hasError && (
                     <Image
-                        source={{ uri: item.MediaURL }}
+                        source={{ uri: item }}
                         style={styles.galleryImage}
                         resizeMode="contain"
                     />
@@ -320,13 +283,19 @@ const ListingCardWithNoTags = ({
                         No pictures available for this listing
                     </Text>
                 </View>
-                <RealtorWatermark />
             </View>
         );
     };
 
+    const { streetAddress, cityInfo } = parseAddress();
+
     return (
-        <View className="bg-white rounded-3xl overflow-hidden mb-4" style={containerStyle}>
+        <TouchableOpacity 
+            onPress={onPress}
+            activeOpacity={onPress ? 0.9 : 1}
+            className="bg-white rounded-3xl overflow-hidden mb-4" 
+            style={containerStyle}
+        >
             <View className="relative">
                 {mediaItems.length > 0 ? (
                     <FlatList
@@ -337,7 +306,7 @@ const ListingCardWithNoTags = ({
                         showsHorizontalScrollIndicator={false}
                         onScroll={handleMediaScroll}
                         renderItem={renderMediaItem}
-                        keyExtractor={(item, index) => `card-${item?.MediaURL || index}-${index}`}
+                        keyExtractor={(item, index) => `card-${item}-${index}`}
                         snapToInterval={SCREEN_WIDTH - 32}
                         decelerationRate="fast"
                         initialScrollIndex={currentMediaIndex}
@@ -353,71 +322,65 @@ const ListingCardWithNoTags = ({
                 
                 <View className="absolute top-3 right-4 bg-black/50 px-3 py-1 rounded-full">
                     <Text className="text-white text-sm">
-                        {mediaItems.length > 0 ? `${currentMediaIndex + 1}/${mediaItems.length}` : '0/0'}
+                        {mediaItems.length > 0 ? `${currentMediaIndex + 1}/${mediaItems.length}` : 'No photos'}
                     </Text>
                 </View>
 
                 {showActions && (
-                    <View className="absolute right-4 top-4 flex-row space-x-2">
-                        <TouchableOpacity 
-                            className="bg-white rounded-full p-2 shadow"
-                            onPress={onFavorite}
-                        >
-                            <Feather name="heart" size={24} color="black" />
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                            className="bg-white rounded-full p-2 shadow"
-                            onPress={onClose}
-                        >
-                            <Feather name="x" size={24} color="black" />
-                        </TouchableOpacity>
+                    <View className="absolute top-3 left-3 flex-row">
+                        {onClose && (
+                            <TouchableOpacity
+                                onPress={onClose}
+                                className="bg-black/50 p-2 rounded-full mr-2"
+                            >
+                                <Feather name="x" size={20} color="white" />
+                            </TouchableOpacity>
+                        )}
+                        {onFavorite && (
+                            <TouchableOpacity
+                                onPress={onFavorite}
+                                className="bg-black/50 p-2 rounded-full"
+                            >
+                                <Feather name="heart" size={20} color="white" />
+                            </TouchableOpacity>
+                        )}
                     </View>
                 )}
             </View>
 
+            {/* Listing Info - Keep exactly like original but split address */}
             <View className="p-4">
-                {/* Address section */}
-                <TouchableOpacity 
-                    onPress={onAddressPress}
-                    activeOpacity={0.7}
-                >
-                    <Text 
-                        numberOfLines={2}
-                        className="text-black font-bold text-lg mb-1"
-                    >
-                        {address}
+                {/* Address - split into two lines */}
+                <TouchableOpacity onPress={onAddressPress}>
+                    <Text className="text-gray-900 text-xl font-semibold mb-1" numberOfLines={2}>
+                        {streetAddress}
                     </Text>
+                    {cityInfo && (
+                        <Text className="text-gray-600 text-base font-semibold mb-3" numberOfLines={1}>
+                            {cityInfo}
+                        </Text>
+                    )}
                 </TouchableOpacity>
-                
-                {/* Price section - New layout */}
-                <View className="mb-2">
-                    <Text style={styles.priceText}>
-                        {formatPrice()}
-                        {isRental && <Text style={styles.monthlyText}> monthly</Text>}
+
+                {/* Price with rental tag */}
+                <View className="flex-row items-start justify-between mb-2">
+                    <Text className="text-lg font-bold text-gray-900 flex-1 mr-2">
+                        {formatPrice()}{isRental ? ' monthly' : ''}
                     </Text>
                 </View>
                 
-                {/* Amenities section */}
-                <View style={styles.amenitiesContainer}>
-                    <Text style={styles.amenitiesText}>
-                        {listing?.bedrooms_total || 0} bedrooms · {listing?.bathrooms_total || 0} bathrooms · {(listing?.parking_features || []).length} parking
-                    </Text>
-                </View>
-                
-                {/* Property type */}
-                <Text style={styles.propertyTypeText}>
-                    {listing?.property_type || 'Property'}
+                {/* Property details - keep original format */}
+                <Text className="text-gray-600 mb-2">
+                    {listing.bedrooms_total || 0} bedrooms · {listing.bathrooms_total || 0} bathrooms · 0 parking
                 </Text>
                 
-                {/* Square footage - only shown if available */}
-                {listing?.lot_size_area && (
-                    <Text style={styles.squareFootageText}>
-                        {listing.lot_size_area.toLocaleString()} square feet
-                    </Text>
-                )}
+                {/* Property type */}
+                <Text className="text-gray-600">
+                    {listing.property_type}
+                </Text>
             </View>
-            
-            {/* Full-screen Image Gallery Modal */}
+
+            {/* Full Screen Gallery Modal */}
             <Modal
                 visible={galleryVisible}
                 transparent={true}
@@ -425,26 +388,23 @@ const ListingCardWithNoTags = ({
                 onRequestClose={closeGallery}
             >
                 <Animated.View 
-                    style={[
-                        styles.galleryModalContainer, 
-                        { 
-                            opacity: fadeAnim,
-                        }
-                    ]}
+                    style={[styles.modalOverlay, { opacity: fadeAnim }]}
                 >
-                    <Pressable 
-                        style={styles.galleryBackdrop}
-                        onPress={closeGallery}
-                    />
-                    
                     <Animated.View 
-                        style={[
-                            styles.galleryContent,
-                            {
-                                transform: [{ scale: scaleAnim }]
-                            }
-                        ]}
+                        style={[styles.modalContent, { transform: [{ scale: scaleAnim }] }]}
                     >
+                        <View style={styles.modalHeader}>
+                            <TouchableOpacity 
+                                onPress={closeGallery}
+                                style={styles.closeButton}
+                            >
+                                <Feather name="x" size={24} color="white" />
+                            </TouchableOpacity>
+                            <Text style={styles.modalTitle}>
+                                {galleryIndex + 1} of {mediaItems.length}
+                            </Text>
+                        </View>
+
                         <FlatList
                             ref={galleryFlatListRef}
                             data={mediaItems}
@@ -453,7 +413,7 @@ const ListingCardWithNoTags = ({
                             showsHorizontalScrollIndicator={false}
                             onScroll={handleGalleryScroll}
                             renderItem={renderGalleryItem}
-                            keyExtractor={(item, index) => `gallery-${item?.MediaURL || index}-${index}`}
+                            keyExtractor={(item, index) => `gallery-${item}-${index}`}
                             initialScrollIndex={galleryIndex}
                             getItemLayout={(data, index) => ({
                                 length: SCREEN_WIDTH,
@@ -461,25 +421,10 @@ const ListingCardWithNoTags = ({
                                 index,
                             })}
                         />
-                        
-                        <View className="absolute top-6 right-6 left-6 flex-row justify-between items-center">
-                            <View className="bg-black/50 px-3 py-1 rounded-full">
-                                <Text className="text-white text-sm">
-                                    {mediaItems.length > 0 ? `${galleryIndex + 1}/${mediaItems.length}` : '0/0'}
-                                </Text>
-                            </View>
-                            
-                            <TouchableOpacity 
-                                style={styles.closeButton}
-                                onPress={closeGallery}
-                            >
-                                <Feather name="x" size={24} color="white" />
-                            </TouchableOpacity>
-                        </View>
                     </Animated.View>
                 </Animated.View>
             </Modal>
-        </View>
+        </TouchableOpacity>
     );
 };
 
@@ -488,16 +433,10 @@ const styles = StyleSheet.create({
         width: SCREEN_WIDTH - 32,
         height: MEDIA_HEIGHT,
         position: 'relative',
-        backgroundColor: '#f0f0f0',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-        overflow: 'hidden',
     },
     imageContainer: {
         width: '100%',
         height: '100%',
-        alignItems: 'center',
-        justifyContent: 'center',
     },
     mediaImage: {
         width: '100%',
@@ -507,98 +446,46 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        width: '100%',
-        height: '100%',
-        padding: 16,
+        backgroundColor: '#F5F5F5',
     },
-    videoContainer: {
-        backgroundColor: 'black',
-        justifyContent: 'center',
-        alignItems: 'center',
-        width: '100%',
-        height: '100%',
-        borderTopLeftRadius: 24,
-        borderTopRightRadius: 24,
-    },
-    watermarkContainer: {
-        position: 'absolute',
-        left: 8,
-        bottom: 8,
-        zIndex: 10,
-    },
-    watermarkImage: {
-        width: 100,
-        height: 40,
-    },
-    // Updated Property details styles
-    priceText: {
-        fontSize: 18, // Larger font size
-        fontWeight: 'bold',
-        color: '#000',
-    },
-    monthlyText: {
-        fontWeight: 'normal',
-        fontSize: 16,
-    },
-    propertyTypeText: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 4,
-    },
-    amenitiesContainer: {
-        marginBottom: 4,
-    },
-    amenitiesText: {
-        fontSize: 14,
-        color: '#333',
-    },
-    squareFootageText: {
-        fontSize: 14,
-        color: '#666',
-        marginBottom: 6,
-    },
-    // Gallery Modal Styles
-    galleryModalContainer: {
+    modalOverlay: {
         flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    galleryBackdrop: {
-        position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
         backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    },
-    galleryContent: {
-        width: SCREEN_WIDTH,
-        height: SCREEN_HEIGHT * 0.8,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    modalContent: {
+        flex: 1,
+        width: '100%',
+    },
+    modalHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingTop: 50,
+        paddingBottom: 20,
+    },
+    closeButton: {
+        padding: 10,
+    },
+    modalTitle: {
+        color: 'white',
+        fontSize: 16,
+        fontWeight: 'bold',
     },
     galleryItemContainer: {
         width: SCREEN_WIDTH,
-        height: SCREEN_HEIGHT * 0.8,
+        height: SCREEN_HEIGHT - 100,
         justifyContent: 'center',
         alignItems: 'center',
     },
     galleryImage: {
-        width: SCREEN_WIDTH,
-        height: SCREEN_HEIGHT * 0.8,
-    },
-    galleryPlaceholderContainer: {
-        flex: 1,
-        justifyContent: 'center',
-        alignItems: 'center',
         width: '100%',
         height: '100%',
     },
-    closeButton: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    galleryPlaceholderContainer: {
+        flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
     },

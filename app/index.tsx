@@ -100,12 +100,12 @@ const App = () => {
                         </TouchableOpacity>
 
                         <Text className="text-center text-gray-500 text-sm mt-2 px-16">
-                            By continuing, you agree to Dwellner's <Text 
+                            By continuing, you agree to DeepHome's <Text 
                                 className="text-gray-700 underline"
-                                onPress={() => Linking.openURL('https://dwellner.com/terms')}
+                                onPress={() => Linking.openURL('https://deephome.ca/terms')}
                             >Terms of use</Text> and <Text 
                                 className="text-gray-700 underline"
-                                onPress={() => Linking.openURL('https://dwellner.com/policy')}
+                                onPress={() => Linking.openURL('https://deephome.ca/policy')}
                             >Privacy Policy</Text>.
                         </Text>
                     </View>

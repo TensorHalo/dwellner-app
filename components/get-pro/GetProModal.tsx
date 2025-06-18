@@ -80,7 +80,7 @@ const GetProModal = ({ visible, onClose }: GetProModalProps) => {
                                     />
                                 </View>
 
-                                <Text style={styles.title}>Get Dwellner Pro</Text>
+                                <Text style={styles.title}>Get DeepHome Pro</Text>
 
                                 <Text style={styles.subtitle}>
                                     The home search function is free for any home seekers with limited times of access.

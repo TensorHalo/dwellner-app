@@ -5,7 +5,7 @@ import { View, StyleSheet } from "react-native";
 const Page = () => {
     return (
         <View style={styles.container}>
-           Welcome to Dwellner!
+           Welcome to DeepHome!
         </View>
     );
 };

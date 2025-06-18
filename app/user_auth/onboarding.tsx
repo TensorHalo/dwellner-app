@@ -57,7 +57,7 @@ const OnboardingScreen = () => {
           <View className="flex-1 px-8 pt-20">
             
             <Text className="text-[32px] font-bold text-black mb-4">
-              Welcome to{'\n'}Dwellner
+              Welcome to{'\n'}DeepHome
             </Text>
             
             <Text className="text-[15px] text-gray-500 mb-12 max-w-[90%]">
@@ -91,7 +91,7 @@ const OnboardingScreen = () => {
                 </View>
               }
               title="Grow your real estate business"
-              description="Agents can subscribe to Dwellner Ultra for more deals and quality client leads."
+              description="Agents can subscribe to DeepHome Ultra for more deals and quality client leads."
             />
           </View>
 
