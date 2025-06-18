@@ -3,7 +3,7 @@ import { ListingData } from "@/types/listingData";
 import { getAuthTokens } from "@/utils/authTokens";
 
 export class ListingsViewAllApi {
-    private static API_ENDPOINT = 'http://35.183.46.220:8080/api/v0/view_all';
+    private static API_ENDPOINT = 'https://api.deephome.ca/api/v0/view_all';
     private accessToken: string;
     private idToken: string;
 

@@ -132,7 +132,7 @@ const ListingMap: React.FC<ListingMapProps> = ({
         try {
             const { latitude, longitude } = listing.coordinates;
             
-            const apiUrl = `http://35.183.46.220:8080/api/v0/listing/details/nearby/${latitude},${longitude}`;
+            const apiUrl = `https://api.deephome.ca/api/v0/listing/details/nearby/${latitude},${longitude}`;
             
             const response = await fetch(apiUrl, {
                 method: 'GET',

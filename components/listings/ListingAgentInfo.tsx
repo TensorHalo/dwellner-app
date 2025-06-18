@@ -45,7 +45,7 @@ const ListingAgentInfo: React.FC<ListingAgentInfoProps> = ({ listAgentKey }) => 
                 throw new Error('Authentication tokens not available');
             }
 
-            const apiUrl = `http://35.183.46.220:8080/api/v0/crea/lead-details/${agentKey}`;
+            const apiUrl = `https://api.deephome.ca/api/v0/crea/lead-details/${agentKey}`;
             const response = await fetch(apiUrl, {
                 method: 'GET',
                 headers: {

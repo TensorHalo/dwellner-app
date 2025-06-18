@@ -20,10 +20,10 @@
       "config": {
         "googleMapsApiKey": "AIzaSyA1cRST4odpAAs30pWs5414iJebTTynDpo"
       },
-      "bundleIdentifier": "com.dwellner.app"
+      "bundleIdentifier": "com.deephome.app"
     },
     "android": {
-      "package": "com.dwellner.app",
+      "package": "com.deephome.app",
       "adaptiveIcon": {
         "foregroundImage": "./assets/dwellnerlogo.png",
         "backgroundColor": "#ffffff"
