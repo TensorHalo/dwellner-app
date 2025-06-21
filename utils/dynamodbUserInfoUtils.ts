@@ -7,14 +7,6 @@ import {
 
 const TABLE_NAME = "dwellner_users";
 
-const client = new DynamoDBClient({
-    region: "ca-central-1",
-    credentials: {
-        accessKeyId: 'AKIA3PW5YS7N3QIKX55D',
-        secretAccessKey: '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'
-    }
-});
-
 const docClient = DynamoDBDocumentClient.from(client, {
     marshallOptions: {
         removeUndefinedValues: true,

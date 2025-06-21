@@ -355,11 +355,11 @@ const ListingCard = ({
             <View className="p-4">
                 {/* Address - split into two lines */}
                 <TouchableOpacity onPress={onAddressPress}>
-                    <Text className="text-gray-900 text-xl font-semibold mb-1" numberOfLines={2}>
+                    <Text className="text-gray-900 text-xl font-bold mb-1" numberOfLines={2}>
                         {streetAddress}
                     </Text>
                     {cityInfo && (
-                        <Text className="text-gray-600 text-m font-semibold mb-3" numberOfLines={1}>
+                        <Text className="text-gray-600 text-m font-bold mb-3" numberOfLines={1}>
                             {cityInfo}
                         </Text>
                     )}
@@ -367,7 +367,7 @@ const ListingCard = ({
 
                 {/* Price with rental tag */}
                 <View className="flex-row items-start justify-between mb-2">
-                    <Text className="text-lg font-bold text-gray-900 flex-1 mr-2">
+                    <Text className="text-lg font-semibold text-gray-900 flex-1 mr-2">
                         {formatPrice()}{isRental ? ' monthly' : ''}
                     </Text>
                 </View>

@@ -4,31 +4,6 @@ import AWS from 'aws-sdk';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { CognitoUserPool, CognitoUser, AuthenticationDetails, CognitoUserSession } from 'amazon-cognito-identity-js';
 
-// const poolConfig = {
-//     UserPoolId: 'ca-central-1_K6lc1Lk4K',
-//     ClientId: '5p90ba62k37iju5d76tt09t09b',
-//     Region: 'ca-central-1'
-// };
-
-export const poolConfig = {
-    UserPoolId: 'ca-central-1_dPfkBnLBO',
-    ClientId: '5k58qlhffgpvhp5l89gnghlgdo',
-    Region: 'ca-central-1',
-    AuthenticationFlowType: 'CUSTOM_AUTH'
-};
-
-export const userPool = new CognitoUserPool({
-    UserPoolId: poolConfig.UserPoolId,
-    ClientId: poolConfig.ClientId
-});
-
-AWS.config.update({
-    region: poolConfig.Region,
-    credentials: new AWS.Credentials({
-        accessKeyId: 'AKIA3PW5YS7N3QIKX55D',
-        secretAccessKey: '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'
-    })
-});
 
 export const cognitoIdentityServiceProvider = new AWS.CognitoIdentityServiceProvider();
 

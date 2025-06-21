@@ -11,14 +11,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { DynamoDBUserRecord, EmailAuthMetadata, UserInfoFormData } from '@/types/user';
 import { getCognitoUserId } from "./cognitoConfig";
 
-const client = new DynamoDBClient({
-    region: "ca-central-1",
-    credentials: {
-        accessKeyId: 'AKIA3PW5YS7N3QIKX55D',
-        secretAccessKey: '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'
-    }
-});
-
 const docClient = DynamoDBDocumentClient.from(client, {
     marshallOptions: {
         removeUndefinedValues: true,
